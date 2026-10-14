@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      width: 300px;
+      margin: 0;
+      padding: 14px;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+    }
+    h1 { font-size: 14px; margin: 0 0 10px; }
+    h2 {
+      font-size: 12px;
+      margin: 14px 0 6px;
+      color: #536471;
+      border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+      padding-bottom: 4px;
+    }
+    #recorder {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      text-align: center;
+      border: 1.5px solid #1d9bf0;
+      border-radius: 8px;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+    }
+    #recorder.recording {
+      border-style: dashed;
+      background: rgba(29, 155, 240, 0.12);
+    }
+    .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+    }
+    button {
+      padding: 4px 8px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    #status { font-size: 12px; color: #1d9bf0; }
+    .toggle-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      padding: 8px 10px;
+      border: 1px solid rgba(128, 128, 128, 0.25);
+      border-radius: 8px;
+      cursor: pointer;
+      user-select: none;
+    }
+    .toggle-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: #1d9bf0;
+      cursor: pointer;
+      margin: 0;
+    }
+    .shortcut-list {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 5px 10px;
+      align-items: center;
+      font-size: 12px;
+    }
+    kbd {
+      display: inline-block;
+      padding: 1px 6px;
+      font-family: ui-monospace, SFMono-Regular, monospace;
+      font-size: 11px;
+      font-weight: 700;
+      color: #1d9bf0;
+      background: rgba(29, 155, 240, 0.12);
+      border: 1px solid rgba(29, 155, 240, 0.35);
+      border-radius: 4px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>X 다국어 단축키 & 팔로우 (F)</h1>
+  <div id="recorder" tabindex="0" role="button" aria-label="단축키 입력">F</div>
+  <div class="row">
+    <span id="status">클릭 후 팔로우 단축키 변경 (한/일/중 입력 지원)</span>
+    <button id="reset" type="button">초기화 (F)</button>
+  </div>
+  <label class="toggle-row" for="show-ui-hints">
+    <span>버튼·메뉴에 단축키 UI 표시</span>
+    <input id="show-ui-hints" type="checkbox" checked>
+  </label>
+
+  <h2>확장 프로그램 추가 단축키</h2>
+  <div class="shortcut-list">
+    <kbd id="ext-follow-key">F</kbd>
+    <span>프로필 / 게시물(status) / 팔로워·팔로잉 목록에서 팔로우·언팔로우·서로 팔로우</span>
+    <kbd>Y / N</kbd>
+    <span>언팔로우·차단·뮤트 확인 모달에서 확인(Y) / 취소(N)</span>
+    <kbd>E</kbd>
+    <span>재게시 메뉴 열기 / 인용(Quote) 바로 선택</span>
+  </div>
+
+  <h2>X (?) 전체 단축키 (한·일·중 다국어 자동 변환)</h2>
+  <div class="shortcut-list">
+    <kbd>? / .</kbd>
+    <span>단축키 도움말(?) / 새 게시물 불러오기(.)</span>
+    <kbd>J / K</kbd>
+    <span>다음 / 이전 게시물·계정 이동</span>
+    <kbd>Space / Enter</kbd>
+    <span>페이지 내리기(Space) / 게시물 상세 열기(Enter)</span>
+    <kbd>N / ⌘+Enter</kbd>
+    <span>새 게시물 작성(N) / 게시물 전송(⌘+Enter)</span>
+    <kbd>/</kbd>
+    <span>검색창 포커스</span>
+    <kbd>L / R / T</kbd>
+    <span>마음에 들어요(L) / 답글(R) / 재게시(T)</span>
+    <kbd>S / B</kbd>
+    <span>공유하기(S) / 북마크(B)</span>
+    <kbd>U / X</kbd>
+    <span>계정 뮤트(U) / 계정 차단(X)</span>
+    <kbd>O / I / M</kbd>
+    <span>사진 펼치기(O) / 쪽지함(I) / 동영상 뮤트(M)</span>
+    <kbd>G + H/E/N/R/P</kbd>
+    <span>홈(H) / 탐색(E) / 알림(N) / 멘션(R) / 프로필(P)</span>
+    <kbd>G + F/T/L/I/M</kbd>
+    <span>초안(F) / 예약(T) / 좋아요(L) / 리스트(I) / 채팅(M)</span>
+    <kbd>G + G/C/S/B/U/D</kbd>
+    <span>Grok(G) / 스튜디오(C) / 설정(S) / 북마크(B) / 사용자(U) / 표시(D)</span>
+    <kbd>A + D/Space/M</kbd>
+    <span>오디오독 이동(D) / 재생·일시중지(Space) / 음소거(M)</span>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>
