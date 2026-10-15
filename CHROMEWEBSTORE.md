@@ -32,6 +32,9 @@ Key Features:
 Privacy & Permissions:
 This extension only runs on x.com and twitter.com and uses Chrome storage solely to save your shortcut preferences. No personal data, browsing history, or account information is collected or transmitted.
 
+Source Code & Documentation (GitHub):
+https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow
+
 **Category** [REQUIRED]
 Social & Communication
 
@@ -40,6 +43,12 @@ Provides keyboard shortcuts for Follow/Unfollow actions, confirmation dialogs, a
 
 **Primary Language** [REQUIRED]
 English
+
+**Homepage URL**
+https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow
+
+**Support URL**
+https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/issues
 
 ## Graphics & Assets
 
