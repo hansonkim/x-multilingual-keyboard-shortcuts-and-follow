@@ -46,7 +46,13 @@ English
 | Asset | Dimensions | Status | Filename |
 |-------|-----------|--------|----------|
 | Store Icon [REQUIRED] | 128×128 PNG | ✅ Ready | `icons/icon-128.png` |
-| Screenshot 1 [REQUIRED] | 1280×800 | ✅ Ready | `store-assets/screenshot-1280x800.png` |
+| Screenshot 1 (Home / Shortcuts HUD) [REQUIRED] | 1280×800 | ✅ Ready | `store-assets/screenshot-0-home-shortcuts.png` |
+| Screenshot 2 (Verified Followers / J·K) | 1280×800 | ✅ Ready | `store-assets/screenshot-1-verified-followers-jk.png` |
+| Screenshot 3 (Unfollow Confirm / Y·N) | 1280×800 | ✅ Ready | `store-assets/screenshot-2-unfollow-confirm-yn.png` |
+| Screenshot 4 (Followers Tab / G W) | 1280×800 | ✅ Ready | `store-assets/screenshot-3-followers-tab-gw.png` |
+| Screenshot 5 (Following Tab / G O) | 1280×800 | ✅ Ready | `store-assets/screenshot-4-following-tab-go.png` |
+| Screenshot (Default Alias) | 1280×800 | ✅ Ready | `store-assets/screenshot-1280x800.png` |
+| Demo Video (Key Event HUD + Privacy Masked) | 1280×800 MP4 | ✅ Ready | `store-assets/demo-video.mp4` |
 | Small Promo Tile [RECOMMENDED] | 440×280 | ✅ Ready | `store-assets/promo-440x280.png` |
 
 ## Permissions Justification
