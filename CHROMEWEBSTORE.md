@@ -84,9 +84,9 @@ English
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.0.7 | 2026-10-15 | Rename extension to "X Multilingual Keyboard Shortcuts & Follow" to reflect full multilingual shortcut and follow capabilities. | Submitted |
+| 1.0.7 | 2026-10-15 | Rename extension to "X Multilingual Keyboard Shortcuts & Follow" to reflect full multilingual shortcut and follow capabilities. | Published |
 | 1.0.6 | 2026-10-15 | Support all X.com (?) shortcuts across multilingual IMEs, continuous J/K hold repeat, status page follow, selected-row-only F hint on follow lists, g v/w/o follow tab shortcuts from any page, and show/hide UI hint toggle. | Superseded |
-| 1.0.3 | 2026-10-14 | Display on-screen key badges (F, Y, N) on buttons, floating shortcut HUD, and X shortcut reference in popup. | Published |
+| 1.0.3 | 2026-10-14 | Display on-screen key badges (F, Y, N) on buttons, floating shortcut HUD, and X shortcut reference in popup. | Superseded |
 | 1.0.2 | 2026-10-14 | Support J/K-selected UserCell follow/unfollow/follow-back on verified_followers, followers, following pages and Y/N unfollow confirmation. | Superseded |
 | 1.0.1 | 2026-10-14 | Support physical key matching across Korean (ㄹ) and non-Latin IME layouts. | Superseded |
 | 1.0.0 | 2026-10-14 | Initial release with default F shortcut and custom key/combination recorder. | Superseded |
