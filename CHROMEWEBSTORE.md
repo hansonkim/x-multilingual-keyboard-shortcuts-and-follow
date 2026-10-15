@@ -1,45 +1,45 @@
-# Chrome Web Store Listing — X Profile Follow Shortcut
+# Chrome Web Store Listing — X Multilingual Keyboard Shortcuts & Follow
 
-> Last Updated: 2026-10-14
+> Last Updated: 2026-10-15
 
 ## Store Listing
 
 **Extension Name** [REQUIRED]
-X Profile Follow Shortcut
+X Multilingual Keyboard Shortcuts & Follow
 
 **Short Description** [REQUIRED]
-Press a customizable keyboard shortcut (default: F) to instantly click the Follow button on X.com user profile pages.
+Use all X.com keyboard shortcuts plus Follow/Unfollow (F), Modal (Y/N), and Tab navigation (g v/w/o) in any input language.
 
 **Detailed Description** [REQUIRED]
-X Profile Follow Shortcut lets you follow or unfollow accounts on X.com user profile pages with a single keyboard shortcut instead of reaching for your mouse.
+X Multilingual Keyboard Shortcuts & Follow adds fast keyboard shortcuts for following/unfollowing accounts on X.com and makes every X.com keyboard shortcut work seamlessly across Korean, Japanese, Chinese, Russian, Arabic, and other input languages (IME) without switching your keyboard layout to English.
 
 Key Features:
-Instant profile follow shortcut: Press F (default) on any X.com user profile page to trigger the profile's Follow or Unfollow button.
-Follower & Following list support: On /verified_followers, /followers, and /following pages, navigate users with J / K and press F to trigger Follow, Follow back (서로 팔로우하기), or Unfollow on the selected user.
-Unfollow confirmation with Y / N: When the unfollow confirmation dialog appears, press Y to confirm or N to cancel without touching the mouse.
-On-screen shortcut badges & HUD: Displays key badges (F, Y, N) directly on active Follow/Unfollow buttons and a compact on-screen shortcut bar alongside official X shortcuts (J/K, L, T, R, ?).
-Works in Korean (ㄹ) and any language layout: Press the same physical key (such as 'ㄹ' on a Korean keyboard, or 'ㅛ'/'ㅜ' for Y/N) without switching your input language (한/영).
-Custom single keys or key combinations: Change the shortcut to any key or modifier combination (Ctrl, Alt, Shift, Meta/Cmd) from the extension popup.
-Smart input detection: Automatically ignores key presses while you are typing a post, reply, direct message, or search query.
-Cross-device settings: Your custom shortcut preference stays saved in your browser profile.
-
-How to Use:
-1. Open any user profile page on x.com and press F (or your configured shortcut) to click the profile's Follow/Unfollow button.
-2. On /verified_followers, /followers, or /following pages, press J or K to select a user row, then press F to Follow, Follow back, or Unfollow.
-3. In the Unfollow confirmation dialog, press Y to confirm or N to cancel.
-4. Click the extension icon in the toolbar at any time to view all X & extension shortcuts, record a new key combination, or reset to the default F key.
+1. Follow / Unfollow / Follow Back Shortcut (Default: F):
+   - Profile & Status Pages: Press F on any user profile page or post status page to instantly click the user's Follow, Following, or Follow Back button.
+   - Follower & Following Lists (/verified_followers, /followers, /following): Navigate users with J / K (including continuous scroll when holding J or K) and press F to Follow, Follow Back, or Unfollow the selected user.
+   - Hover Cards: When a user profile hover card is open, pressing F targets the hover card's Follow/Unfollow button.
+2. Quick Confirmation Dialog Shortcuts (Y / N):
+   - When an Unfollow, Mute, or Block confirmation dialog appears, press Y to confirm or N to cancel without using your mouse.
+3. Follower & Following List Navigation (g v / g w / g o):
+   - Press g v (Verified Followers), g w (Followers), or g o (Following) from any page on X.com to jump directly to the corresponding tab.
+4. Full Multilingual Support for All X.com (?) Shortcuts:
+   - Use every built-in X.com shortcut (?, j, k, Space, ., n, /, l, r, t, s, b, u, x, Enter, o, i, m, e for Quote, g + h/e/n/r/p/f/t/l/i/m/g/c/s/b/u/d, and a + d/Space/m) directly while typing in Korean, Japanese, Chinese, Russian, Arabic, or full-width IME modes.
+5. On-Screen Shortcut Hints (Show / Hide Option):
+   - Displays subtle inline shortcut labels matching each button or menu item's native text color. On follower/following lists, the F hint appears exclusively on the user selected via J / K. You can toggle these hints on or off anytime from the extension popup.
+6. Customizable Follow Shortcut & Smart Input Detection:
+   - Customize the Follow shortcut to any key or modifier combination in the popup. Key presses are automatically ignored while typing inside text fields, replies, search bars, or direct messages.
 
 Privacy & Permissions:
-This extension only runs on x.com and twitter.com and uses storage solely to save your chosen keyboard shortcut. No personal data, browsing history, or account information is collected or transmitted.
+This extension only runs on x.com and twitter.com and uses Chrome storage solely to save your shortcut preferences. No personal data, browsing history, or account information is collected or transmitted.
 
 **Category** [REQUIRED]
 Social & Communication
 
 **Single Purpose** [REQUIRED]
-Triggers the Follow/Unfollow button on X.com user profile pages and J/K-selected follower/following lists using a customizable keyboard shortcut.
+Provides keyboard shortcuts for Follow/Unfollow actions, confirmation dialogs, and multilingual X.com navigation on X.com.
 
 **Primary Language** [REQUIRED]
-Korean
+English
 
 ## Graphics & Assets
 
@@ -53,8 +53,8 @@ Korean
 
 | Permission | Type | Justification |
 |------------|------|---------------|
-| `storage` | permissions | Saves the user's customized keyboard shortcut preference so it persists across browser sessions. |
-| `https://x.com/*`, `https://twitter.com/*` | content_scripts | Listens for the user's configured keyboard shortcut on X profile and follower/following pages and clicks the corresponding Follow/Unfollow button when pressed. |
+| `storage` | permissions | Saves the user's customized keyboard shortcut preference and UI hint visibility setting so they persist across browser sessions. |
+| `https://x.com/*`, `https://twitter.com/*` | content_scripts | Listens for keyboard shortcuts on X.com pages, displays optional shortcut hints on buttons, and triggers Follow/Unfollow or navigation actions when pressed. |
 
 ## Privacy & Data Use
 
@@ -78,7 +78,9 @@ Korean
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.0.3 | 2026-10-14 | Display on-screen key badges (F, Y, N) on buttons, floating shortcut HUD, and X shortcut reference in popup. | Submitted |
+| 1.0.7 | 2026-10-15 | Rename extension to "X Multilingual Keyboard Shortcuts & Follow" to reflect full multilingual shortcut and follow capabilities. | Submitted |
+| 1.0.6 | 2026-10-15 | Support all X.com (?) shortcuts across multilingual IMEs, continuous J/K hold repeat, status page follow, selected-row-only F hint on follow lists, g v/w/o follow tab shortcuts from any page, and show/hide UI hint toggle. | Superseded |
+| 1.0.3 | 2026-10-14 | Display on-screen key badges (F, Y, N) on buttons, floating shortcut HUD, and X shortcut reference in popup. | Published |
 | 1.0.2 | 2026-10-14 | Support J/K-selected UserCell follow/unfollow/follow-back on verified_followers, followers, following pages and Y/N unfollow confirmation. | Superseded |
 | 1.0.1 | 2026-10-14 | Support physical key matching across Korean (ㄹ) and non-Latin IME layouts. | Superseded |
 | 1.0.0 | 2026-10-14 | Initial release with default F shortcut and custom key/combination recorder. | Superseded |

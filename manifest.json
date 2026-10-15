@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "X Profile Follow Shortcut",
-  "version": "1.0.5",
-  "description": "Use all X.com (?) keyboard shortcuts plus Follow/Unfollow (F) & Modal (Y/N) in Korean, Japanese, Chinese, and any input language without switching IME.",
+  "name": "X Multilingual Keyboard Shortcuts & Follow",
+  "version": "1.0.7",
+  "description": "Use all X.com keyboard shortcuts plus Follow/Unfollow (F), Modal (Y/N), and Tab navigation (g v/w/o) in any input language.",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",
@@ -11,7 +11,7 @@
   "permissions": ["storage"],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "X Follow & Multilingual Shortcuts",
+    "default_title": "X Multilingual Keyboard Shortcuts & Follow",
     "default_icon": {
       "16": "icons/icon-16.png",
       "48": "icons/icon-48.png",
@@ -20,7 +20,7 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://x.com/*", "https://twitter.com/*", "https://pro.x.com/*"],
+      "matches": ["https://x.com/*", "https://twitter.com/*"],
       "js": ["content.js"],
       "run_at": "document_start"
     }

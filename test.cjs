@@ -548,4 +548,60 @@ syncUiHints();
 assert.equal(listBtn1.getAttribute('data-xfs-target'), null);
 assert.equal(listBtn2.getAttribute('data-xfs-target'), 'true');
 
+// 12. Follow list page top tabs ([role="tab"]) shortcuts: g v (/verified_followers), g w (/followers), g o (/following)
+let clickedTab = null;
+const verifiedTab = { click() { clickedTab = 'verified_followers'; } };
+const followersTab = { click() { clickedTab = 'followers'; } };
+const followingTab = { click() { clickedTab = 'following'; } };
+const tabDoc = {
+  body: mockBody,
+  activeElement: mockBody,
+  querySelector(sel) {
+    if (sel.includes('/verified_followers')) return verifiedTab;
+    if (sel.includes('/followers')) return followersTab;
+    if (sel.includes('/following')) return followingTab;
+    return null;
+  }
+};
+
+globalThis.location = { pathname: '/Hanssony_/followers' };
+clearPendingPrefix();
+assert.equal(handleActionIfMatched(makeEv({ key: 'ㅎ', code: 'KeyG' }), tabDoc, false), true);
+assert.equal(handleActionIfMatched(makeEv({ key: 'ㅍ', code: 'KeyV' }), tabDoc, false), true);
+assert.equal(clickedTab, 'verified_followers');
+
+clearPendingPrefix();
+handleActionIfMatched(makeEv({ key: 'g', code: 'KeyG' }), tabDoc, false);
+assert.equal(handleActionIfMatched(makeEv({ key: 'w', code: 'KeyW' }), tabDoc, false), true);
+assert.equal(clickedTab, 'followers');
+
+clearPendingPrefix();
+assert.equal(handleActionIfMatched(makeEv({ key: 'き', code: 'KeyG' }), tabDoc, false), true);
+assert.equal(handleActionIfMatched(makeEv({ key: 'ら', code: 'KeyO' }), tabDoc, false), true);
+assert.equal(clickedTab, 'following');
+
+// 12b. g v / g w / g o from other pages (/home -> logged-in user, /Buldakguy/status/... -> Buldakguy)
+const otherPageDoc = {
+  body: mockBody,
+  activeElement: mockBody,
+  querySelector(sel) {
+    if (sel === 'header nav a[data-testid="AppTabBar_Profile_Link"]') {
+      return { getAttribute: (k) => (k === 'href' ? '/Hanssony_' : null) };
+    }
+    return null;
+  }
+};
+
+globalThis.location = { pathname: '/home' };
+clearPendingPrefix();
+assert.equal(handleActionIfMatched(makeEv({ key: 'ㅎ', code: 'KeyG' }), otherPageDoc, false), true);
+assert.equal(handleActionIfMatched(makeEv({ key: 'ㅈ', code: 'KeyW' }), otherPageDoc, false), true);
+assert.equal(globalThis.location.pathname, '/Hanssony_/followers');
+
+globalThis.location = { pathname: '/Buldakguy/status/2110367916348899354' };
+clearPendingPrefix();
+assert.equal(handleActionIfMatched(makeEv({ key: 'ㅎ', code: 'KeyG' }), otherPageDoc, false), true);
+assert.equal(handleActionIfMatched(makeEv({ key: 'ㅐ', code: 'KeyO' }), otherPageDoc, false), true);
+assert.equal(globalThis.location.pathname, '/Buldakguy/following');
+
 console.log('All assertions passed.');

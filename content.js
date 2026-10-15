@@ -356,6 +356,97 @@ function findDropdownActionButton(code, root = document) {
   return null;
 }
 
+const FOLLOW_TAB_SUFFIX_BY_CODE = {
+  KeyV: '/verified_followers',
+  KeyW: '/followers',
+  KeyO: '/following'
+};
+
+const RESERVED_TOP_PATHS = new Set([
+  'home',
+  'explore',
+  'notifications',
+  'messages',
+  'i',
+  'search',
+  'settings',
+  'compose',
+  'intent',
+  'tos',
+  'privacy',
+  'jobs',
+  'lists',
+  'login',
+  'logout',
+  'signup'
+]);
+
+function resolveFollowListUsername(
+  root = document,
+  pathname = typeof location !== 'undefined' ? location.pathname : ''
+) {
+  const segMatch = pathname.match(/^\/([^/?#]+)/);
+  const firstSeg = segMatch ? segMatch[1] : '';
+  const isUserScoped =
+    firstSeg &&
+    !RESERVED_TOP_PATHS.has(firstSeg.toLowerCase()) &&
+    (isFollowListPage(pathname) ||
+      isStatusPage(pathname) ||
+      Boolean(root.querySelector?.('[data-testid="primaryColumn"] [data-testid="UserName"]')));
+
+  if (isUserScoped) {
+    return firstSeg;
+  }
+
+  const profileLink = root.querySelector?.('header nav a[data-testid="AppTabBar_Profile_Link"]');
+  const profileHref = profileLink?.getAttribute?.('href') || '';
+  const profileMatch = profileHref.match(/^\/([^/?#]+)/);
+  if (profileMatch && !RESERVED_TOP_PATHS.has(profileMatch[1].toLowerCase())) {
+    return profileMatch[1];
+  }
+
+  if (firstSeg && !RESERVED_TOP_PATHS.has(firstSeg.toLowerCase())) {
+    return firstSeg;
+  }
+  return null;
+}
+
+function findFollowListTabLink(
+  code,
+  root = document,
+  pathname = typeof location !== 'undefined' ? location.pathname : ''
+) {
+  const suffix = FOLLOW_TAB_SUFFIX_BY_CODE[code];
+  if (!suffix) return null;
+  if (isFollowListPage(pathname)) {
+    const tab = root.querySelector?.(`a[role="tab"][href$="${suffix}"]`);
+    if (tab) return tab;
+  }
+  const username = resolveFollowListUsername(root, pathname);
+  if (!username) return null;
+  const targetPath = `/${username}${suffix}`;
+  const exactLink = root.querySelector?.(`a[href="${targetPath}"]`);
+  if (exactLink) return exactLink;
+  return {
+    href: targetPath,
+    click() {
+      if (
+        typeof history !== 'undefined' &&
+        typeof history.pushState === 'function' &&
+        typeof window !== 'undefined' &&
+        typeof window.dispatchEvent === 'function'
+      ) {
+        history.pushState({}, '', targetPath);
+        const ev =
+          typeof PopStateEvent === 'function' ? new PopStateEvent('popstate') : { type: 'popstate' };
+        window.dispatchEvent(ev);
+      } else if (typeof location !== 'undefined') {
+        location.pathname = targetPath;
+      }
+    }
+  };
+}
+
 const FOLLOW_BTN_SELECTOR =
   '[data-testid$="-follow"], [data-testid$="-unfollow"], button[aria-label*="팔로우"], [role="button"][aria-label*="팔로우"]';
 
@@ -729,6 +820,20 @@ function ensureStyles() {
       color: currentColor;
       margin-left: 6px;
     }
+    a[role="tab"][href$="/verified_followers"] div[dir="ltr"] > span:first-of-type::after,
+    a[role="tab"][href$="/followers"] div[dir="ltr"] > span:first-of-type::after,
+    a[role="tab"][href$="/following"] div[dir="ltr"] > span:first-of-type::after {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      color: currentColor;
+      margin-left: 6px;
+      pointer-events: none;
+      user-select: none;
+    }
+    a[role="tab"][href$="/verified_followers"] div[dir="ltr"] > span:first-of-type::after { content: "g v"; }
+    a[role="tab"][href$="/followers"] div[dir="ltr"] > span:first-of-type::after { content: "g w"; }
+    a[role="tab"][href$="/following"] div[dir="ltr"] > span:first-of-type::after { content: "g o"; }
   `;
   if (style.textContent !== css) {
     style.textContent = css;
@@ -884,6 +989,15 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
   // 5. "g + ..." sequence second key
   if (activePrefix === 'g') {
     clearPendingPrefix();
+    const tabLink = findFollowListTabLink(code, root);
+    if (tabLink) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      tabLink.click();
+      scheduleUiSync();
+      return true;
+    }
     if (!G_PREFIX_SECOND_CODES.has(code)) return false;
     const spec = codeToNativeSpec(code, false);
     if (!spec) return false;
@@ -1169,6 +1283,7 @@ if (typeof module !== 'undefined') {
     isFollowListPage,
     isStatusPage,
     findConfirmationDialogButton,
+    findFollowListTabLink,
     findProfileFollowButton,
     handleActionIfMatched,
     clearPendingPrefix,
