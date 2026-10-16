@@ -265,6 +265,54 @@ function clearPendingPrefix() {
   pendingPrefix = { key: null, until: 0 };
 }
 
+const LOCAL_STORAGE_SHORTCUT_KEY = 'x_follow_shortcut_config';
+const LOCAL_STORAGE_HINTS_KEY = 'x_follow_shortcut_show_hints';
+
+function loadFromLocalStorage() {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const rawShortcut = localStorage.getItem(LOCAL_STORAGE_SHORTCUT_KEY);
+    if (rawShortcut) {
+      const parsed = JSON.parse(rawShortcut);
+      if (parsed && typeof parsed === 'object') {
+        shortcut = { ...DEFAULT_SHORTCUT, ...parsed };
+      }
+    }
+    const rawHints = localStorage.getItem(LOCAL_STORAGE_HINTS_KEY);
+    if (rawHints !== null) {
+      showUiHints = rawHints !== 'false';
+    }
+  } catch (_) {}
+}
+
+function registerUserscriptMenuCommands() {
+  if (typeof GM_registerMenuCommand !== 'function') return;
+  try {
+    GM_registerMenuCommand('Toggle Shortcut Hints (단축키 힌트 표시/숨기기)', () => {
+      const next = !showUiHints;
+      try {
+        localStorage.setItem(LOCAL_STORAGE_HINTS_KEY, String(next));
+      } catch (_) {}
+      setShowUiHints(next);
+    });
+    GM_registerMenuCommand('Set Follow Shortcut Key (팔로우 단축키 변경)', () => {
+      const currentLabel = formatShortcutLabel(shortcut);
+      const input = typeof window !== 'undefined' && typeof window.prompt === 'function'
+        ? window.prompt(`Enter Follow shortcut key (current: ${currentLabel}, default: F):`, shortcut.key || 'f')
+        : null;
+      if (!input) return;
+      const k = input.trim().slice(0, 1).toLowerCase();
+      if (!k) return;
+      const code = resolveKeyCode({ key: k, code: '' }) || DEFAULT_SHORTCUT.code;
+      shortcut = { ...DEFAULT_SHORTCUT, key: k, code };
+      try {
+        localStorage.setItem(LOCAL_STORAGE_SHORTCUT_KEY, JSON.stringify(shortcut));
+      } catch (_) {}
+      scheduleUiSync();
+    });
+  } catch (_) {}
+}
+
 async function initShortcut() {
   try {
     const data = await chrome.storage.sync.get(['shortcut', 'showUiHints']);
@@ -276,7 +324,7 @@ async function initShortcut() {
   }
 }
 
-if (typeof chrome !== 'undefined' && chrome.storage) {
+if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
   initShortcut();
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'sync') {
@@ -289,6 +337,9 @@ if (typeof chrome !== 'undefined' && chrome.storage) {
       scheduleUiSync();
     }
   });
+} else {
+  loadFromLocalStorage();
+  registerUserscriptMenuCommands();
 }
 
 function isEditable(el) {

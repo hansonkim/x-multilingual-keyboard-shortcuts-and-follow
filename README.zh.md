@@ -79,14 +79,17 @@
 
 ## 安装方式
 
+### Chrome / Edge / Brave / Arc
 1. **Chrome 应用商店安装**：直接前往 [Chrome Web Store](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf) 安装。
 2. **手动加载（开发者模式）**：
-   - 克隆本仓库：
-     ```bash
-     git clone https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow.git
-     ```
+   - 从 [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest) 下载 `x-multilingual-keyboard-shortcuts-and-follow-chrome.zip`（或克隆本仓库）。
    - 在 Chrome 浏览器打开 `chrome://extensions/` 并开启右上角的**开发者模式**。
-   - 点击**加载已解压的扩展程序**，选择本仓库目录。
+   - 点击**加载已解压的扩展程序**，选择解压后的目录。
+
+### Safari (macOS / iOS) — Userscript 脚本方式
+1. 在 Safari 中安装免费开源的脚本管理器扩展，例如 [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) 或 [Stay](https://apps.apple.com/app/stay-for-safari/id1591620171) / Tampermonkey。
+2. 从 [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest) 下载 **[`x-multilingual-keyboard-shortcuts-and-follow.user.js`](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest/download/x-multilingual-keyboard-shortcuts-and-follow.user.js)**（或 `x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip`）并添加到 Userscripts 脚本目录。
+3. 在 Safari 打开 `https://x.com` 即可直接使用所有多语言快捷键（`?`）、`F` 关注/取消关注、`Y`/`N` 确认弹窗以及 `G V/W/O` 标签页跳转，并可通过脚本菜单切换提示标签或修改关注键。
 
 ---
 

@@ -79,14 +79,17 @@ IME（日本語かな・韓国語・中国語・ロシア語・アラビア語�
 
 ## インストール方法
 
+### Chrome / Edge / Brave / Arc
 1. **Chrome ウェブストア**：[Chrome ウェブストア](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf) から直接インストールできます。
 2. **手動インストール（デベロッパーモード）**：
-   - リポジトリをクローン：
-     ```bash
-     git clone https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow.git
-     ```
+   - [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest) から `x-multilingual-keyboard-shortcuts-and-follow-chrome.zip` をダウンロード（またはリポジトリをクローン）します。
    - Chrome で `chrome://extensions/` を開き、右上の**デベロッパー モード**を有効にします。
-   - **パッケージ化されていない拡張機能を読み込む**をクリックし、このフォルダを選択します。
+   - **パッケージ化されていない拡張機能を読み込む**をクリックし、展開したフォルダを選択します。
+
+### Safari (macOS / iOS) — Userscript 方式
+1. Safari 用の無料オープンソース拡張機能 [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) または [Stay](https://apps.apple.com/app/stay-for-safari/id1591620171) / Tampermonkey をインストールします。
+2. [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest) から **[`x-multilingual-keyboard-shortcuts-and-follow.user.js`](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest/download/x-multilingual-keyboard-shortcuts-and-follow.user.js)**（または `x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip`）をダウンロードし、Userscripts のスクリプトフォルダに追加します。
+3. Safari で `https://x.com` を開くと、すべての多言語ショートカット（`?`）、`F` フォロー/解除、`Y`/`N` 確認モーダル、`G V/W/O` タブ移動がすぐに使えます。スクリプトメニューからヒント表示の切り替えやフォローキーの変更も可能です。
 
 ---
 

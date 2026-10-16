@@ -79,14 +79,17 @@ Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**,
 
 ## Installation
 
+### Chrome / Edge / Brave / Arc
 1. **Chrome Web Store**: Install directly from the [Chrome Web Store](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf).
 2. **Manual (Unpacked)**:
-   - Clone this repository:
-     ```bash
-     git clone https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow.git
-     ```
+   - Download `x-multilingual-keyboard-shortcuts-and-follow-chrome.zip` from [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest) (or clone this repository).
    - Open `chrome://extensions/` in Chrome and enable **Developer mode**.
-   - Click **Load unpacked** and select this repository folder.
+   - Click **Load unpacked** and select the extracted folder.
+
+### Safari (macOS / iOS) — Userscript
+1. Install a Userscript manager for Safari such as [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) (free, open-source) or [Stay](https://apps.apple.com/app/stay-for-safari/id1591620171) / Tampermonkey.
+2. Download **[`x-multilingual-keyboard-shortcuts-and-follow.user.js`](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest/download/x-multilingual-keyboard-shortcuts-and-follow.user.js)** (or `x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip`) from [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest) and add it to your Userscripts directory.
+3. Open `https://x.com` in Safari — all multilingual shortcuts (`?`), `F` Follow/Unfollow, `Y`/`N` confirmation modals, and `G V/W/O` tab navigation work immediately. You can also toggle UI hints or customize the Follow key from the Userscript manager menu (`GM_registerMenuCommand`).
 
 ---
 

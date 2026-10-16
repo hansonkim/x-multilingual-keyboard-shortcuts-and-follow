@@ -79,14 +79,17 @@
 
 ## 설치 방법
 
+### Chrome / Edge / Brave / Arc
 1. **Chrome 웹 스토어 설치**: [Chrome 웹 스토어 페이지](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)에서 바로 설치할 수 있습니다.
 2. **수동 설치 (개발자 모드)**:
-   - 저장소 클론:
-     ```bash
-     git clone https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow.git
-     ```
+   - [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest)에서 `x-multilingual-keyboard-shortcuts-and-follow-chrome.zip`을 다운로드(또는 저장소 클론)합니다.
    - Chrome 주소창에 `chrome://extensions/` 입력 후 우측 상단 **개발자 모드** 활성화
-   - **압축해제된 확장 프로그램을 로드합니다** 클릭 후 저장소 폴더 선택
+   - **압축해제된 확장 프로그램을 로드합니다** 클릭 후 폴더 선택
+
+### Safari (macOS / iOS) — Userscript 방식
+1. App Store에서 무료 오픈소스 Safari 확장 프로그램인 [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) 또는 [Stay](https://apps.apple.com/app/stay-for-safari/id1591620171) / Tampermonkey를 설치합니다.
+2. [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest)에서 **[`x-multilingual-keyboard-shortcuts-and-follow.user.js`](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest/download/x-multilingual-keyboard-shortcuts-and-follow.user.js)** (또는 `x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip`) 파일을 받아 Userscripts 폴더에 등록합니다.
+3. Safari에서 `https://x.com`에 접속하면 모든 다국어 단축키(`?`), `F` 팔로우/언팔로우, `Y`/`N` 확인 모달, `G V/W/O` 탭 이동이 즉시 작동하며, Userscript 메뉴(`GM_registerMenuCommand`)에서 단축키 힌트 표시/숨기기와 팔로우 키 변경도 가능합니다.
 
 ---
 

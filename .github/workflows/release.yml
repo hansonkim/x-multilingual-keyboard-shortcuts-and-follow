@@ -1,0 +1,71 @@
+name: Release Packages (CD)
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run unit tests
+        run: node test.cjs
+
+      - name: Build Safari Userscript & Chrome Extension packages
+        run: node scripts/build-release.cjs
+
+      - name: Read version from manifest.json
+        id: meta
+        run: |
+          VERSION=$(node -p "require('./manifest.json').version")
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Create or Update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.meta.outputs.tag }}"
+          VERSION="${{ steps.meta.outputs.version }}"
+          NOTES="## X Multilingual Keyboard Shortcuts & Follow ${TAG}
+
+          ### Safari (macOS / iOS) — Userscript
+          1. Install a Userscript extension for Safari such as [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) (free, open-source) or [Stay](https://apps.apple.com/app/stay-for-safari/id1591620171) / Tampermonkey.
+          2. Download **\`x-multilingual-keyboard-shortcuts-and-follow.user.js\`** (or \`x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip\`) from the Assets below and add it to your Userscripts directory.
+          3. Open \`https://x.com\` in Safari — all multilingual shortcuts (\`?\`), \`F\` Follow/Unfollow, \`Y/N\` confirmation modals, and \`G V/W/O\` tab navigation work immediately.
+
+          ### Chrome / Edge / Brave / Arc
+          - [Install from Chrome Web Store](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+          - Or download **\`x-multilingual-keyboard-shortcuts-and-follow-chrome.zip\`**, unzip, and load unpacked at \`chrome://extensions/\`."
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              dist/x-multilingual-keyboard-shortcuts-and-follow.user.js \
+              dist/x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip \
+              dist/x-multilingual-keyboard-shortcuts-and-follow-chrome.zip \
+              --clobber
+            gh release edit "$TAG" --title "X Multilingual Keyboard Shortcuts & Follow ${TAG}" --notes "$NOTES"
+          else
+            gh release create "$TAG" \
+              dist/x-multilingual-keyboard-shortcuts-and-follow.user.js \
+              dist/x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip \
+              dist/x-multilingual-keyboard-shortcuts-and-follow-chrome.zip \
+              --target main \
+              --title "X Multilingual Keyboard Shortcuts & Follow ${TAG}" \
+              --notes "$NOTES"
+          fi
