@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "X Multilingual Keyboard Shortcuts & Follow",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Use all X.com keyboard shortcuts plus Follow/Unfollow (F), Modal (Y/N), and Tab navigation (g v/w/o) in any input language.",
   "icons": {
     "16": "icons/icon-16.png",

@@ -285,20 +285,52 @@ function loadFromLocalStorage() {
   } catch (_) {}
 }
 
+function getUserscriptMenuStrings() {
+  const navLang = (typeof navigator !== 'undefined' && navigator.language) || 'en';
+  const lower = String(navLang).toLowerCase();
+  if (lower.startsWith('ko')) {
+    return {
+      toggleHints: '단축키 힌트 표시/숨기기 (Toggle Shortcut Hints)',
+      setFollowKey: '팔로우 단축키 변경 (Set Follow Shortcut Key)',
+      promptKey: (curr) => `팔로우 단축키를 입력하세요 (현재: ${curr}, 기본값: F):`
+    };
+  }
+  if (lower.startsWith('zh')) {
+    return {
+      toggleHints: '显示/隐藏快捷键提示 (Toggle Shortcut Hints)',
+      setFollowKey: '修改关注快捷键 (Set Follow Shortcut Key)',
+      promptKey: (curr) => `请输入关注快捷键（当前：${curr}，默认：F）：`
+    };
+  }
+  if (lower.startsWith('ja')) {
+    return {
+      toggleHints: 'ショートカットヒント表示切替 (Toggle Shortcut Hints)',
+      setFollowKey: 'フォローショートカット変更 (Set Follow Shortcut Key)',
+      promptKey: (curr) => `フォロー用ショートカットキーを入力してください（現在: ${curr}、デフォルト: F）:`
+    };
+  }
+  return {
+    toggleHints: 'Toggle Shortcut Hints',
+    setFollowKey: 'Set Follow Shortcut Key',
+    promptKey: (curr) => `Enter Follow shortcut key (current: ${curr}, default: F):`
+  };
+}
+
 function registerUserscriptMenuCommands() {
   if (typeof GM_registerMenuCommand !== 'function') return;
   try {
-    GM_registerMenuCommand('Toggle Shortcut Hints (단축키 힌트 표시/숨기기)', () => {
+    const strings = getUserscriptMenuStrings();
+    GM_registerMenuCommand(strings.toggleHints, () => {
       const next = !showUiHints;
       try {
         localStorage.setItem(LOCAL_STORAGE_HINTS_KEY, String(next));
       } catch (_) {}
       setShowUiHints(next);
     });
-    GM_registerMenuCommand('Set Follow Shortcut Key (팔로우 단축키 변경)', () => {
+    GM_registerMenuCommand(strings.setFollowKey, () => {
       const currentLabel = formatShortcutLabel(shortcut);
       const input = typeof window !== 'undefined' && typeof window.prompt === 'function'
-        ? window.prompt(`Enter Follow shortcut key (current: ${currentLabel}, default: F):`, shortcut.key || 'f')
+        ? window.prompt(strings.promptKey(currentLabel), shortcut.key || 'f')
         : null;
       if (!input) return;
       const k = input.trim().slice(0, 1).toLowerCase();

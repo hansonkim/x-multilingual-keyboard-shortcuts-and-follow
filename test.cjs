@@ -604,4 +604,22 @@ assert.equal(handleActionIfMatched(makeEv({ key: 'ㅎ', code: 'KeyG' }), otherPa
 assert.equal(handleActionIfMatched(makeEv({ key: 'ㅐ', code: 'KeyO' }), otherPageDoc, false), true);
 assert.equal(globalThis.location.pathname, '/Buldakguy/following');
 
+// 13. Popup i18n support (ko, en, zh, ja) and browser language detection
+const { I18N, detectBrowserLang } = require('./popup.js');
+assert.equal(detectBrowserLang('ko-KR'), 'ko');
+assert.equal(detectBrowserLang('en-US'), 'en');
+assert.equal(detectBrowserLang('zh-CN'), 'zh');
+assert.equal(detectBrowserLang('zh-TW'), 'zh');
+assert.equal(detectBrowserLang('ja-JP'), 'ja');
+assert.equal(detectBrowserLang('fr-FR'), 'en');
+
+const expectedKeys = Object.keys(I18N.ko);
+for (const lang of ['ko', 'en', 'zh', 'ja']) {
+  assert.deepEqual(Object.keys(I18N[lang]), expectedKeys, `Missing i18n keys for ${lang}`);
+  for (const k of expectedKeys) {
+    assert.equal(typeof I18N[lang][k], 'string');
+    assert.equal(I18N[lang][k].length > 0, true);
+  }
+}
+
 console.log('All assertions passed.');

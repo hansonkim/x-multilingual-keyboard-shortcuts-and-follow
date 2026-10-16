@@ -1,17 +1,34 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <style>
     :root { color-scheme: light dark; }
     body {
-      width: 300px;
+      width: 310px;
       margin: 0;
       padding: 14px;
       font-family: system-ui, -apple-system, sans-serif;
       font-size: 13px;
     }
-    h1 { font-size: 14px; margin: 0 0 10px; }
+    .header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 10px;
+    }
+    h1 { font-size: 14px; margin: 0; line-height: 1.3; }
+    #lang-select {
+      padding: 3px 6px;
+      font-size: 11px;
+      border-radius: 6px;
+      border: 1px solid rgba(128, 128, 128, 0.35);
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
     h2 {
       font-size: 12px;
       margin: 14px 0 6px;
@@ -41,11 +58,13 @@
       justify-content: space-between;
       align-items: center;
       margin-top: 8px;
+      gap: 8px;
     }
     button {
       padding: 4px 8px;
       font-size: 12px;
       cursor: pointer;
+      flex-shrink: 0;
     }
     #status { font-size: 12px; color: #1d9bf0; }
     .toggle-row {
@@ -88,57 +107,65 @@
   </style>
 </head>
 <body>
-  <h1>X 다국어 단축키 & 팔로우 (F)</h1>
-  <div id="recorder" tabindex="0" role="button" aria-label="단축키 입력">F</div>
+  <div class="header-row">
+    <h1 data-i18n="title">X 다국어 단축키 & 팔로우 (F)</h1>
+    <select id="lang-select" aria-label="Language">
+      <option value="ko">한국어</option>
+      <option value="en">English</option>
+      <option value="zh">中文</option>
+      <option value="ja">日本語</option>
+    </select>
+  </div>
+  <div id="recorder" tabindex="0" role="button" aria-label="Shortcut Recorder">F</div>
   <div class="row">
-    <span id="status">클릭 후 팔로우 단축키 변경 (한/일/중 입력 지원)</span>
-    <button id="reset" type="button">초기화 (F)</button>
+    <span id="status" data-i18n="statusDefault">클릭 후 팔로우 단축키 변경 (한/일/중 입력 지원)</span>
+    <button id="reset" type="button" data-i18n="resetBtn">초기화 (F)</button>
   </div>
   <label class="toggle-row" for="show-ui-hints">
-    <span>버튼·메뉴에 단축키 UI 표시</span>
+    <span data-i18n="toggleHints">버튼·메뉴에 단축키 UI 표시</span>
     <input id="show-ui-hints" type="checkbox" checked>
   </label>
 
-  <h2>확장 프로그램 추가 단축키</h2>
+  <h2 data-i18n="extSectionTitle">확장 프로그램 추가 단축키</h2>
   <div class="shortcut-list">
     <kbd id="ext-follow-key">F</kbd>
-    <span>프로필 / 게시물(status) / 팔로워·팔로잉 목록에서 팔로우·언팔로우·서로 팔로우</span>
+    <span data-i18n="extFollowDesc">프로필 / 게시물(status) / 팔로워·팔로잉 목록에서 팔로우·언팔로우·서로 팔로우</span>
     <kbd>Y / N</kbd>
-    <span>언팔로우·차단·뮤트 확인 모달에서 확인(Y) / 취소(N)</span>
+    <span data-i18n="extModalDesc">언팔로우·차단·뮤트 확인 모달에서 확인(Y) / 취소(N)</span>
     <kbd>G + V/W/O</kbd>
-    <span>인증된 팔로워(V) / 팔로워(W) / 팔로잉(O) 이동</span>
+    <span data-i18n="extTabDesc">인증된 팔로워(V) / 팔로워(W) / 팔로잉(O) 이동</span>
     <kbd>E</kbd>
-    <span>재게시 메뉴 열기 / 인용(Quote) 바로 선택</span>
+    <span data-i18n="extQuoteDesc">재게시 메뉴 열기 / 인용(Quote) 바로 선택</span>
   </div>
 
-  <h2>X (?) 전체 단축키 (한·일·중 다국어 자동 변환)</h2>
+  <h2 data-i18n="xSectionTitle">X (?) 전체 단축키 (한·일·중 다국어 자동 변환)</h2>
   <div class="shortcut-list">
     <kbd>? / .</kbd>
-    <span>단축키 도움말(?) / 새 게시물 불러오기(.)</span>
+    <span data-i18n="xHelpNewDesc">단축키 도움말(?) / 새 게시물 불러오기(.)</span>
     <kbd>J / K</kbd>
-    <span>다음 / 이전 게시물·계정 이동</span>
+    <span data-i18n="xJkDesc">다음 / 이전 게시물·계정 이동</span>
     <kbd>Space / Enter</kbd>
-    <span>페이지 내리기(Space) / 게시물 상세 열기(Enter)</span>
+    <span data-i18n="xSpaceEnterDesc">페이지 내리기(Space) / 게시물 상세 열기(Enter)</span>
     <kbd>N / ⌘+Enter</kbd>
-    <span>새 게시물 작성(N) / 게시물 전송(⌘+Enter)</span>
+    <span data-i18n="xNewPostDesc">새 게시물 작성(N) / 게시물 전송(⌘+Enter)</span>
     <kbd>/</kbd>
-    <span>검색창 포커스</span>
+    <span data-i18n="xSearchDesc">검색창 포커스</span>
     <kbd>L / R / T</kbd>
-    <span>마음에 들어요(L) / 답글(R) / 재게시(T)</span>
+    <span data-i18n="xLrtDesc">마음에 들어요(L) / 답글(R) / 재게시(T)</span>
     <kbd>S / B</kbd>
-    <span>공유하기(S) / 북마크(B)</span>
+    <span data-i18n="xSbDesc">공유하기(S) / 북마크(B)</span>
     <kbd>U / X</kbd>
-    <span>계정 뮤트(U) / 계정 차단(X)</span>
+    <span data-i18n="xUxDesc">계정 뮤트(U) / 계정 차단(X)</span>
     <kbd>O / I / M</kbd>
-    <span>사진 펼치기(O) / 쪽지함(I) / 동영상 뮤트(M)</span>
+    <span data-i18n="xOimDesc">사진 펼치기(O) / 쪽지함(I) / 동영상 뮤트(M)</span>
     <kbd>G + H/E/N/R/P</kbd>
-    <span>홈(H) / 탐색(E) / 알림(N) / 멘션(R) / 프로필(P)</span>
+    <span data-i18n="xG1Desc">홈(H) / 탐색(E) / 알림(N) / 멘션(R) / 프로필(P)</span>
     <kbd>G + F/T/L/I/M</kbd>
-    <span>초안(F) / 예약(T) / 좋아요(L) / 리스트(I) / 채팅(M)</span>
+    <span data-i18n="xG2Desc">초안(F) / 예약(T) / 좋아요(L) / 리스트(I) / 채팅(M)</span>
     <kbd>G + G/C/S/B/U/D</kbd>
-    <span>Grok(G) / 스튜디오(C) / 설정(S) / 북마크(B) / 사용자(U) / 표시(D)</span>
+    <span data-i18n="xG3Desc">Grok(G) / 스튜디오(C) / 설정(S) / 북마크(B) / 사용자(U) / 표시(D)</span>
     <kbd>A + D/Space/M</kbd>
-    <span>오디오독 이동(D) / 재생·일시중지(Space) / 음소거(M)</span>
+    <span data-i18n="xAudioDesc">오디오독 이동(D) / 재생·일시중지(Space) / 음소거(M)</span>
   </div>
   <script src="popup.js"></script>
 </body>

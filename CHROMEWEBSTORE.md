@@ -93,6 +93,7 @@ https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/issues
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.0.8 | 2026-10-16 | Add 4-language UI support (Korean, English, Chinese, Japanese) with auto-detection and language selector in the extension popup panel, plus Safari Userscript support. | Ready |
 | 1.0.7 | 2026-10-15 | Rename extension to "X Multilingual Keyboard Shortcuts & Follow" to reflect full multilingual shortcut and follow capabilities. | Published |
 | 1.0.6 | 2026-10-15 | Support all X.com (?) shortcuts across multilingual IMEs, continuous J/K hold repeat, status page follow, selected-row-only F hint on follow lists, g v/w/o follow tab shortcuts from any page, and show/hide UI hint toggle. | Superseded |
 | 1.0.3 | 2026-10-14 | Display on-screen key badges (F, Y, N) on buttons, floating shortcut HUD, and X shortcut reference in popup. | Superseded |
