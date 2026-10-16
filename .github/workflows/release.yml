@@ -69,3 +69,33 @@ jobs:
               --title "X Multilingual Keyboard Shortcuts & Follow ${TAG}" \
               --notes "$NOTES"
           fi
+
+      - name: Upload & Publish to Chrome Web Store (CWS API v2)
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID || '0ad8e2f8-f351-4bef-ae4c-32635ae702cb' }}
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID || 'helbbdgikebbpbjjejmkkappejlhaglf' }}
+        run: |
+          if [ -z "$CWS_CLIENT_ID" ] || [ -z "$CWS_CLIENT_SECRET" ] || [ -z "$CWS_REFRESH_TOKEN" ]; then
+            echo "::notice::Skipping Chrome Web Store API upload in GitHub Actions (CWS_CLIENT_ID / CWS_CLIENT_SECRET / CWS_REFRESH_TOKEN secrets not configured)."
+            exit 0
+          fi
+          ACCESS_TOKEN=$(curl -sS -X POST "https://oauth2.googleapis.com/token" \
+            -d "client_id=${CWS_CLIENT_ID}" \
+            -d "client_secret=${CWS_CLIENT_SECRET}" \
+            -d "refresh_token=${CWS_REFRESH_TOKEN}" \
+            -d "grant_type=refresh_token" | jq -r '.access_token')
+          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
+            echo "::error::Failed to obtain Chrome Web Store OAuth access token."
+            exit 1
+          fi
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -H "Content-Type: application/zip" \
+            --data-binary @dist/x-multilingual-keyboard-shortcuts-and-follow-chrome.zip \
+            "https://chromewebstore.googleapis.com/upload/v2/publishers/${CWS_PUBLISHER_ID}/items/${CWS_EXTENSION_ID}:upload"
+          curl -sS -f -X POST \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            "https://chromewebstore.googleapis.com/v2/publishers/${CWS_PUBLISHER_ID}/items/${CWS_EXTENSION_ID}:publish"
