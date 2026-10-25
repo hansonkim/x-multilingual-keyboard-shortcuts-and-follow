@@ -2,9 +2,9 @@
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.7-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.9-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
 
-Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**, **Confirmation Dialog (`Y` / `N`)**, and **Follower / Following Tab Navigation (`G` `V` / `G` `W` / `G` `O`)** seamlessly in **any input language (IME)** — including Korean, Japanese, Chinese, Russian, Arabic, and full-width layouts — without switching your keyboard back to English.
+Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**, **Non-Follower Filter (`Shift + F`)**, **Confirmation Dialog (`Y` / `N`)**, and **Follower / Following Tab Navigation (`G` `V` / `G` `W` / `G` `O`)** seamlessly in **any input language (IME)** — including Korean, Japanese, Chinese, Russian, Arabic, and full-width layouts — without switching your keyboard back to English.
 
 ---
 
@@ -24,8 +24,9 @@ Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**,
    - **Hover Cards**: When a profile hover card is open, pressing `F` targets the hover card's Follow/Unfollow button.
 2. **Confirmation Dialog Shortcuts (`Y` / `N`)**
    - When an Unfollow, Mute, or Block confirmation modal appears, press `Y` to confirm or `N` to cancel without reaching for your mouse.
-3. **Follower & Following Tab Navigation (`G` `V` / `G` `W` / `G` `O`)**
+3. **Follower & Following Tab Navigation (`G` `V` / `G` `W` / `G` `O`) & Non-Follower Filter (`Shift + F`)**
    - Press `G` `V` (**Verified Followers**), `G` `W` (**Followers**), or `G` `O` (**Following**) from any page on X.com to jump directly to that tab.
+   - On the **Following** (`/following`) page, click the sticky filter toggle bar below the tabs or press `Shift + F` (`⇧F`) in any IME to show only accounts that do not follow you back. While active, `J` / `K` automatically skips mutual followers and keeps the selected account aligned directly below the sticky header.
 4. **Full Multilingual Support for All Built-in X.com (`?`) Shortcuts**
    - Every native X.com shortcut works directly while typing in Korean (한글), Japanese (かな), Chinese (中文), Russian, Arabic, or full-width IME modes (`?`, `J`, `K`, `Space`, `.`, `N`, `/`, `L`, `R`, `T`, `S`, `B`, `U`, `X`, `Enter`, `O`, `I`, `M`, `E` for Quote, `G + H/E/N/R/P/F/T/L/I/M/G/C/S/B/U/D`, and `A + D/Space/M`).
 5. **On-Screen Shortcut Hints (Show / Hide Toggle)**
@@ -54,6 +55,7 @@ Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**,
 | Shortcut | Action |
 | --- | --- |
 | `F` *(customizable)* | Follow / Unfollow / Follow Back on Profile, Post Status, Hover Card, or `J`/`K`-selected UserCell |
+| `⇧F` (`Shift + F`) | Toggle filtering only users who do not follow you back on **Following** (`/following`) |
 | `Y` / `N` | Confirm (`Y`) or Cancel (`N`) in Unfollow, Mute, and Block confirmation modals |
 | `G` then `V` | Open **Verified Followers** (`/verified_followers`) |
 | `G` then `W` | Open **Followers** (`/followers`) |

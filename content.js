@@ -95,7 +95,10 @@ const A_PREFIX_SECOND_CODES = new Set([
 ]);
 
 const FOLLOW_LIST_PATH_RE = /^\/[^/]+\/(verified_followers|followers|following|followers_you_follow)\/?$/i;
+const FOLLOWING_PATH_RE = /^\/[^/]+\/following\/?$/i;
 const STATUS_PATH_RE = /^\/([^/]+)\/status\/\d+/i;
+const MUTUAL_BADGE_TEXT_RE =
+  /^(follows you|나를 팔로우합니다|나를 팔로우함|フォローされています|关注了你|已关注你|跟隨你|подписан\(а\) на вас|читает вас|يتابعك)$/i;
 const PREFIX_TIMEOUT_MS = 1000;
 
 function normalizeFullWidthChar(ch) {
@@ -239,12 +242,36 @@ function formatShortcutLabel(sc) {
 
 let shortcut = { ...DEFAULT_SHORTCUT };
 let showUiHints = true;
+let filterNonFollowers = false;
+let uiLang = null;
 let lastFocusedCellLink = null;
+let lastFocusedFilteredCell = null;
 let lastPathname = '';
 let pendingPrefix = { key: null, until: 0 };
 
 function setShowUiHints(visible) {
   showUiHints = Boolean(visible);
+  syncUiHints();
+}
+
+function getFilterNonFollowers() {
+  return filterNonFollowers;
+}
+
+function setFilterNonFollowers(enabled, persist = false) {
+  filterNonFollowers = Boolean(enabled);
+  if (!filterNonFollowers) {
+    lastFocusedFilteredCell = null;
+  }
+  if (persist) {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+        chrome.storage.sync.set({ filterNonFollowers });
+      } else if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(LOCAL_STORAGE_NON_FOLLOWERS_KEY, String(filterNonFollowers));
+      }
+    } catch (_) {}
+  }
   syncUiHints();
 }
 
@@ -267,6 +294,7 @@ function clearPendingPrefix() {
 
 const LOCAL_STORAGE_SHORTCUT_KEY = 'x_follow_shortcut_config';
 const LOCAL_STORAGE_HINTS_KEY = 'x_follow_shortcut_show_hints';
+const LOCAL_STORAGE_NON_FOLLOWERS_KEY = 'x_follow_shortcut_filter_non_followers';
 
 function loadFromLocalStorage() {
   try {
@@ -282,35 +310,53 @@ function loadFromLocalStorage() {
     if (rawHints !== null) {
       showUiHints = rawHints !== 'false';
     }
+    const rawFilter = localStorage.getItem(LOCAL_STORAGE_NON_FOLLOWERS_KEY);
+    if (rawFilter !== null) {
+      filterNonFollowers = rawFilter === 'true';
+    }
   } catch (_) {}
 }
 
-function getUserscriptMenuStrings() {
+function detectUiLang() {
+  if (uiLang && ['ko', 'en', 'zh', 'ja'].includes(uiLang)) return uiLang;
+  const docLang = (typeof document !== 'undefined' && document.documentElement?.lang) || '';
   const navLang = (typeof navigator !== 'undefined' && navigator.language) || 'en';
-  const lower = String(navLang).toLowerCase();
-  if (lower.startsWith('ko')) {
+  const lower = String(docLang || navLang).toLowerCase();
+  if (lower.startsWith('ko')) return 'ko';
+  if (lower.startsWith('zh')) return 'zh';
+  if (lower.startsWith('ja')) return 'ja';
+  return 'en';
+}
+
+function getUserscriptMenuStrings() {
+  const lang = detectUiLang();
+  if (lang === 'ko') {
     return {
       toggleHints: '단축키 힌트 표시/숨기기 (Toggle Shortcut Hints)',
+      toggleNonFollowers: '팔로잉: 맞팔 안 한 계정만 보기 토글 (⇧F)',
       setFollowKey: '팔로우 단축키 변경 (Set Follow Shortcut Key)',
       promptKey: (curr) => `팔로우 단축키를 입력하세요 (현재: ${curr}, 기본값: F):`
     };
   }
-  if (lower.startsWith('zh')) {
+  if (lang === 'zh') {
     return {
       toggleHints: '显示/隐藏快捷键提示 (Toggle Shortcut Hints)',
+      toggleNonFollowers: '正在关注：切换仅看未回关用户 (⇧F)',
       setFollowKey: '修改关注快捷键 (Set Follow Shortcut Key)',
       promptKey: (curr) => `请输入关注快捷键（当前：${curr}，默认：F）：`
     };
   }
-  if (lower.startsWith('ja')) {
+  if (lang === 'ja') {
     return {
       toggleHints: 'ショートカットヒント表示切替 (Toggle Shortcut Hints)',
+      toggleNonFollowers: 'フォロー中：片思いのみ表示切替 (⇧F)',
       setFollowKey: 'フォローショートカット変更 (Set Follow Shortcut Key)',
       promptKey: (curr) => `フォロー用ショートカットキーを入力してください（現在: ${curr}、デフォルト: F）:`
     };
   }
   return {
     toggleHints: 'Toggle Shortcut Hints',
+    toggleNonFollowers: 'Following: Toggle Non-Followers Only (⇧F)',
     setFollowKey: 'Set Follow Shortcut Key',
     promptKey: (curr) => `Enter Follow shortcut key (current: ${curr}, default: F):`
   };
@@ -326,6 +372,9 @@ function registerUserscriptMenuCommands() {
         localStorage.setItem(LOCAL_STORAGE_HINTS_KEY, String(next));
       } catch (_) {}
       setShowUiHints(next);
+    });
+    GM_registerMenuCommand(strings.toggleNonFollowers, () => {
+      setFilterNonFollowers(!filterNonFollowers, true);
     });
     GM_registerMenuCommand(strings.setFollowKey, () => {
       const currentLabel = formatShortcutLabel(shortcut);
@@ -347,9 +396,16 @@ function registerUserscriptMenuCommands() {
 
 async function initShortcut() {
   try {
-    const data = await chrome.storage.sync.get(['shortcut', 'showUiHints']);
+    const data = await chrome.storage.sync.get([
+      'shortcut',
+      'showUiHints',
+      'filterNonFollowers',
+      'uiLang'
+    ]);
     if (data.shortcut) shortcut = { ...DEFAULT_SHORTCUT, ...data.shortcut };
     if (typeof data.showUiHints === 'boolean') showUiHints = data.showUiHints;
+    if (typeof data.filterNonFollowers === 'boolean') filterNonFollowers = data.filterNonFollowers;
+    if (typeof data.uiLang === 'string') uiLang = data.uiLang;
     scheduleUiSync();
   } catch (err) {
     console.error('Failed to load shortcut:', err);
@@ -365,6 +421,12 @@ if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
       }
       if (typeof changes.showUiHints?.newValue === 'boolean') {
         showUiHints = changes.showUiHints.newValue;
+      }
+      if (typeof changes.filterNonFollowers?.newValue === 'boolean') {
+        filterNonFollowers = changes.filterNonFollowers.newValue;
+      }
+      if (typeof changes.uiLang?.newValue === 'string') {
+        uiLang = changes.uiLang.newValue;
       }
       scheduleUiSync();
     }
@@ -399,6 +461,40 @@ function matchesShortcut(e, sc) {
 
 function isFollowListPage(pathname = typeof location !== 'undefined' ? location.pathname : '') {
   return FOLLOW_LIST_PATH_RE.test(pathname);
+}
+
+function isFollowingPage(pathname = typeof location !== 'undefined' ? location.pathname : '') {
+  return FOLLOWING_PATH_RE.test(pathname);
+}
+
+function isFollowingFilterActive(pathname = typeof location !== 'undefined' ? location.pathname : '') {
+  return Boolean(filterNonFollowers && isFollowingPage(pathname));
+}
+
+const mutualCellCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+
+function isMutualFollowerCell(cell) {
+  if (!cell) return false;
+  if (mutualCellCache?.has(cell)) {
+    return mutualCellCache.get(cell);
+  }
+  let result = false;
+  if (cell.querySelector?.('[data-testid="userFollowIndicator"]')) {
+    result = true;
+  } else if (!cell.querySelector?.('[data-testid="UserName"]')) {
+    const candidates = cell.querySelectorAll?.('span, div') || [];
+    for (const el of candidates) {
+      if (el.children && el.children.length > 0) continue;
+      if (el.closest?.('[data-testid="UserDescription"], button, [role="button"]')) continue;
+      const text = (el.textContent || '').trim();
+      if (text && MUTUAL_BADGE_TEXT_RE.test(text)) {
+        result = true;
+        break;
+      }
+    }
+  }
+  mutualCellCache?.set(cell, result);
+  return result;
 }
 
 function isStatusPage(pathname = typeof location !== 'undefined' ? location.pathname : '') {
@@ -533,11 +629,18 @@ function findFollowListTabLink(
 const FOLLOW_BTN_SELECTOR =
   '[data-testid$="-follow"], [data-testid$="-unfollow"], button[aria-label*="팔로우"], [role="button"][aria-label*="팔로우"]';
 
-function findTargetUserCell(primary, root = document) {
+function findTargetUserCell(
+  primary,
+  root = document,
+  pathname = typeof location !== 'undefined' ? location.pathname : ''
+) {
+  const filterActive = isFollowingFilterActive(pathname);
   const active = root.activeElement;
   if (active && primary.contains(active)) {
     const closestCell = active.closest?.('[data-testid="UserCell"]');
     if (closestCell && primary.contains(closestCell)) {
+      if (filterActive && isMutualFollowerCell(closestCell)) return null;
+      lastFocusedFilteredCell = closestCell;
       lastFocusedCellLink = closestCell.querySelector?.('a[role="link"][tabindex="-1"]') || closestCell;
       return closestCell;
     }
@@ -545,9 +648,19 @@ function findTargetUserCell(primary, root = document) {
     const innerDiv = active.closest?.('[data-testid="cellInnerDiv"]');
     const innerCell = innerDiv?.querySelector?.('[data-testid="UserCell"]');
     if (innerCell && primary.contains(innerCell)) {
+      if (filterActive && isMutualFollowerCell(innerCell)) return null;
+      lastFocusedFilteredCell = innerCell;
       lastFocusedCellLink = innerCell.querySelector?.('a[role="link"][tabindex="-1"]') || innerCell;
       return innerCell;
     }
+  }
+
+  if (
+    lastFocusedFilteredCell &&
+    primary.contains(lastFocusedFilteredCell) &&
+    (!filterActive || !isMutualFollowerCell(lastFocusedFilteredCell))
+  ) {
+    return lastFocusedFilteredCell;
   }
 
   if (lastFocusedCellLink?.isConnected && primary.contains(lastFocusedCellLink)) {
@@ -556,10 +669,168 @@ function findTargetUserCell(primary, root = document) {
       lastFocusedCellLink
         .closest?.('[data-testid="cellInnerDiv"]')
         ?.querySelector?.('[data-testid="UserCell"]');
-    if (rememberedCell && primary.contains(rememberedCell)) return rememberedCell;
+    if (rememberedCell && primary.contains(rememberedCell)) {
+      if (filterActive && isMutualFollowerCell(rememberedCell)) return null;
+      return rememberedCell;
+    }
   }
 
   return null;
+}
+
+function getFollowingCells(primary, filterActive) {
+  const all = Array.from(primary?.querySelectorAll?.('[data-testid="UserCell"]') || []);
+  return filterActive ? all.filter((cell) => !isMutualFollowerCell(cell)) : all;
+}
+
+function getStickyHeaderBottom(primary, root = document) {
+  const bar = root.getElementById?.('xfs-following-filter-bar') || primary?.querySelector?.('#xfs-following-filter-bar');
+  if (bar && typeof bar.getBoundingClientRect === 'function') {
+    const r = bar.getBoundingClientRect();
+    if (r && r.bottom > 0) return Math.ceil(r.bottom);
+  }
+  const tablist = primary?.querySelector?.('[role="tablist"]');
+  if (tablist && typeof tablist.getBoundingClientRect === 'function') {
+    const r = tablist.getBoundingClientRect();
+    if (r && r.bottom > 0) return Math.ceil(r.bottom);
+  }
+  return 160;
+}
+
+function alignFollowingCellBelowHeader(targetCell, primary, root = document) {
+  if (!targetCell || typeof window === 'undefined' || typeof window.scrollBy !== 'function') return;
+  const row = targetCell.closest?.('[data-testid="cellInnerDiv"]') || targetCell;
+  if (typeof row.getBoundingClientRect !== 'function') return;
+  const applyAlign = () => {
+    if (row.isConnected === false) return;
+    const rect = row.getBoundingClientRect();
+    if (!rect || (rect.top === 0 && rect.bottom === 0 && rect.height === 0)) return;
+    const headerBottom = getStickyHeaderBottom(primary, root);
+    const delta = rect.top - headerBottom;
+    if (Math.abs(delta) > 1) {
+      window.scrollBy(0, delta);
+    }
+  };
+  applyAlign();
+  if (typeof setTimeout === 'function') {
+    for (const ms of [35, 90, 150]) {
+      setTimeout(applyAlign, ms);
+    }
+  }
+}
+
+function getRowVisualTop(cell) {
+  const row = cell?.closest?.('[data-testid="cellInnerDiv"]') || cell;
+  if (typeof row?.getBoundingClientRect === 'function') {
+    const r = row.getBoundingClientRect();
+    if (r && !(r.top === 0 && r.bottom === 0 && r.height === 0)) {
+      return r.top;
+    }
+  }
+  return null;
+}
+
+function stepFollowingCell(
+  code,
+  root = document,
+  pathname = typeof location !== 'undefined' ? location.pathname : ''
+) {
+  const primary = root.querySelector?.('[data-testid="primaryColumn"]');
+  if (!primary) return false;
+  const filterActive = isFollowingFilterActive(pathname);
+  const rawCells = getFollowingCells(primary, filterActive);
+  const cells = rawCells
+    .map((cell, domIdx) => ({ cell, domIdx, top: getRowVisualTop(cell) }))
+    .sort((a, b) => {
+      if (a.top !== null && b.top !== null && Math.abs(a.top - b.top) > 0.5) {
+        return a.top - b.top;
+      }
+      return a.domIdx - b.domIdx;
+    })
+    .map((item) => item.cell);
+  if (cells.length === 0) {
+    if (code === 'KeyJ' && typeof window !== 'undefined' && typeof window.scrollBy === 'function') {
+      window.scrollBy(0, 480);
+    }
+    return true;
+  }
+
+  const currentCell =
+    lastFocusedFilteredCell && cells.includes(lastFocusedFilteredCell)
+      ? lastFocusedFilteredCell
+      : findTargetUserCell(primary, root, pathname);
+  const currentIdx = currentCell ? cells.indexOf(currentCell) : -1;
+  const currentTop = currentCell ? getRowVisualTop(currentCell) : null;
+  let nextIdx = 0;
+  if (code === 'KeyJ') {
+    if (currentIdx < 0) {
+      nextIdx = 0;
+    } else if (currentIdx < cells.length - 1) {
+      nextIdx = currentIdx + 1;
+      if (currentTop !== null) {
+        const byPos = cells.findIndex((c, idx) => {
+          if (idx <= currentIdx) return false;
+          const t = getRowVisualTop(c);
+          return t !== null && t > currentTop + 2;
+        });
+        if (byPos >= 0) nextIdx = byPos;
+      }
+    } else {
+      nextIdx = cells.length - 1;
+      if (typeof window !== 'undefined' && typeof window.scrollBy === 'function') {
+        window.scrollBy(0, 480);
+      }
+    }
+  } else if (code === 'KeyK') {
+    if (currentIdx > 0) {
+      nextIdx = currentIdx - 1;
+      if (currentTop !== null) {
+        for (let idx = currentIdx - 1; idx >= 0; idx--) {
+          const t = getRowVisualTop(cells[idx]);
+          if (t !== null && t < currentTop - 2) {
+            nextIdx = idx;
+            break;
+          }
+        }
+      }
+    } else {
+      nextIdx = 0;
+      if (typeof window !== 'undefined' && typeof window.scrollBy === 'function') {
+        window.scrollBy(0, -320);
+      }
+    }
+  } else {
+    return false;
+  }
+
+  const targetCell = cells[nextIdx];
+  if (!targetCell) return false;
+  const row = targetCell.closest?.('[data-testid="cellInnerDiv"]');
+  const focusTarget =
+    targetCell.querySelector?.('a[role="link"][tabindex="-1"]') ||
+    (row && row !== targetCell ? row.querySelector?.('[tabindex="0"], [tabindex="-1"]') : null) ||
+    targetCell.querySelector?.('a[href]') ||
+    targetCell;
+  if (focusTarget === targetCell && !targetCell.getAttribute?.('tabindex')) {
+    targetCell.setAttribute?.('tabindex', '-1');
+  }
+  lastFocusedFilteredCell = targetCell;
+  lastFocusedCellLink = focusTarget;
+  focusTarget.focus?.({ preventScroll: true });
+  alignFollowingCellBelowHeader(targetCell, primary, root);
+  try {
+    const desc = Object.getOwnPropertyDescriptor(root, 'activeElement');
+    if (desc?.writable) {
+      root.activeElement = focusTarget;
+    }
+  } catch (_) {}
+  syncFollowingFilter(root, pathname);
+  if (typeof document !== 'undefined' && root === document) {
+    syncUiHints();
+  } else {
+    scheduleUiSync();
+  }
+  return true;
 }
 
 function findStatusFollowButton(root, primary, statusUsername) {
@@ -615,6 +886,7 @@ function findProfileFollowButton(
 ) {
   if (lastPathname !== pathname) {
     lastFocusedCellLink = null;
+    lastFocusedFilteredCell = null;
     lastPathname = pathname;
   }
 
@@ -630,7 +902,7 @@ function findProfileFollowButton(
 
   // 1. On /verified_followers, /followers, /following: target the focused/hovered/remembered UserCell
   if (isFollowListPage(pathname)) {
-    const cell = findTargetUserCell(primary, root);
+    const cell = findTargetUserCell(primary, root, pathname);
     if (!cell) return null;
     const link = cell.querySelector?.('a[role="link"][tabindex="-1"]') || cell;
     lastFocusedCellLink = link;
@@ -923,12 +1195,289 @@ function ensureStyles() {
   }
 }
 
+function ensureFilterStyles(root = document) {
+  if (!root || !root.head || typeof root.createElement !== 'function') return;
+  let style = root.getElementById?.('xfs-filter-styles');
+  if (!style) {
+    style = root.createElement('style');
+    style.id = 'xfs-filter-styles';
+    root.head.appendChild(style);
+  }
+  const css = `
+    .xfs-filter-non-followers [data-testid="cellInnerDiv"]:has([data-testid="userFollowIndicator"], [data-xfs-mutual="true"]) {
+      height: 0 !important;
+      min-height: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      border: 0 !important;
+      overflow: hidden !important;
+    }
+    .xfs-filter-non-followers [data-testid="cellInnerDiv"]:has([data-testid="userFollowIndicator"], [data-xfs-mutual="true"]) > *,
+    .xfs-filter-non-followers [data-testid="UserCell"]:has([data-testid="userFollowIndicator"]),
+    .xfs-filter-non-followers [data-testid="UserCell"][data-xfs-mutual="true"] {
+      display: none !important;
+    }
+    @supports not selector(:has(*)) {
+      .xfs-filter-non-followers [data-testid="cellInnerDiv"].xfs-mutual-row {
+        height: 0 !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        border: 0 !important;
+        overflow: hidden !important;
+      }
+      .xfs-filter-non-followers [data-testid="cellInnerDiv"].xfs-mutual-row > *,
+      .xfs-filter-non-followers [data-testid="UserCell"].xfs-mutual-cell {
+        display: none !important;
+      }
+    }
+    [data-testid="cellInnerDiv"][data-xfs-focused="true"],
+    [data-testid="cellInnerDiv"][data-xfs-focused="true"] [data-testid="UserCell"],
+    [data-testid="UserCell"][data-xfs-focused="true"] {
+      background-color: rgba(29, 155, 240, 0.14) !important;
+      box-shadow: inset 4px 0 0 #1d9bf0, inset 0 0 0 1px rgba(29, 155, 240, 0.5) !important;
+      transition: background-color 0.12s ease, box-shadow 0.12s ease;
+    }
+    #xfs-following-filter-bar {
+      display: flex;
+      align-items: center;
+      padding: 8px 16px;
+      border-bottom: 1px solid rgba(128, 128, 128, 0.25);
+    }
+    #xfs-following-filter-bar[data-xfs-active="true"] {
+      border-bottom: 2px solid #1d9bf0;
+    }
+    #xfs-non-follower-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 10px;
+      border: 1px solid rgba(128, 128, 128, 0.4);
+      background: rgba(128, 128, 128, 0.08);
+      color: inherit;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.3;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+    }
+    #xfs-non-follower-toggle::before {
+      content: "OFF";
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 36px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.03em;
+      background: rgba(128, 128, 128, 0.28);
+      color: inherit;
+      margin-right: 4px;
+    }
+    #xfs-non-follower-toggle[aria-pressed="true"] {
+      border-color: #1d9bf0 !important;
+      background: #1d9bf0 !important;
+      color: #ffffff !important;
+      box-shadow: 0 2px 10px rgba(29, 155, 240, 0.4);
+    }
+    #xfs-non-follower-toggle[aria-pressed="true"]::before {
+      content: "ON";
+      background: #ffffff;
+      color: #1d9bf0;
+    }
+    #xfs-non-follower-toggle[data-xfs-hint="true"]::after {
+      content: "⇧F";
+      margin-left: auto;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(128, 128, 128, 0.2);
+      opacity: 0.95;
+    }
+    #xfs-non-follower-toggle[aria-pressed="true"][data-xfs-hint="true"]::after {
+      background: rgba(255, 255, 255, 0.24);
+      color: #ffffff;
+    }
+  `;
+  if (style.textContent !== css) {
+    style.textContent = css;
+  }
+}
+
+function formatFollowingFilterLabel(active, lang = detectUiLang()) {
+  const stateText = active ? 'ON' : 'OFF';
+  if (lang === 'ko') return `맞팔 안 한 계정만 보기: ${stateText}`;
+  if (lang === 'zh') return `仅看未回关用户: ${stateText}`;
+  if (lang === 'ja') return `片思いのみ表示: ${stateText}`;
+  return `Non-followers only: ${stateText}`;
+}
+
+function syncFollowingFilter(
+  root = document,
+  pathname = typeof location !== 'undefined' ? location.pathname : ''
+) {
+  if (!root || !root.documentElement) {
+    return { total: 0, nonFollowers: 0, mutuals: 0, active: false };
+  }
+  const onFollowing = isFollowingPage(pathname);
+  const active = Boolean(onFollowing && filterNonFollowers);
+  const primary = root.querySelector?.('[data-testid="primaryColumn"]');
+
+  if (!onFollowing) {
+    root.getElementById?.('xfs-following-filter-bar')?.remove?.();
+    root.getElementById?.('xfs-filter-styles')?.remove?.();
+    root.documentElement.removeAttribute?.('data-xfs-filter-non-followers');
+    primary?.classList?.remove?.('xfs-filter-non-followers');
+    primary?.removeAttribute?.('data-xfs-filter-non-followers');
+    for (const el of root.querySelectorAll?.('[data-xfs-mutual="true"], [data-xfs-hidden="true"], [data-xfs-focused="true"]') || []) {
+      el.removeAttribute?.('data-xfs-mutual');
+      el.removeAttribute?.('data-xfs-hidden');
+      el.removeAttribute?.('data-xfs-focused');
+      el.classList?.remove?.('xfs-mutual-cell');
+      el.classList?.remove?.('xfs-mutual-row');
+    }
+    return { total: 0, nonFollowers: 0, mutuals: 0, active: false };
+  }
+
+  ensureFilterStyles(root);
+  if (active) {
+    root.documentElement.setAttribute?.('data-xfs-filter-non-followers', 'true');
+    primary?.classList?.add?.('xfs-filter-non-followers');
+    primary?.setAttribute?.('data-xfs-filter-non-followers', 'true');
+  } else {
+    root.documentElement.removeAttribute?.('data-xfs-filter-non-followers');
+    primary?.classList?.remove?.('xfs-filter-non-followers');
+    primary?.removeAttribute?.('data-xfs-filter-non-followers');
+  }
+
+  if (!primary) {
+    return { total: 0, nonFollowers: 0, mutuals: 0, active };
+  }
+
+  if (active && lastFocusedCellLink) {
+    const focusedCell =
+      lastFocusedCellLink.closest?.('[data-testid="UserCell"]') ||
+      lastFocusedCellLink.closest?.('[data-testid="cellInnerDiv"]')?.querySelector?.('[data-testid="UserCell"]');
+    if (focusedCell && isMutualFollowerCell(focusedCell)) {
+      lastFocusedCellLink = null;
+    }
+  }
+  if (active && lastFocusedFilteredCell && isMutualFollowerCell(lastFocusedFilteredCell)) {
+    lastFocusedFilteredCell = null;
+  }
+
+  const activeCell = onFollowing ? findTargetUserCell(primary, root, pathname) : null;
+  const cells = Array.from(primary.querySelectorAll?.('[data-testid="UserCell"]') || []);
+  let mutuals = 0;
+  for (const cell of cells) {
+    const mutual = isMutualFollowerCell(cell);
+    const row = cell.closest?.('[data-testid="cellInnerDiv"]');
+    const isFocusedCell = Boolean(onFollowing && activeCell && cell === activeCell && (!active || !mutual));
+    if (isFocusedCell) {
+      if (cell.getAttribute?.('data-xfs-focused') !== 'true') {
+        cell.setAttribute?.('data-xfs-focused', 'true');
+      }
+      if (row && row.getAttribute?.('data-xfs-focused') !== 'true') {
+        row.setAttribute?.('data-xfs-focused', 'true');
+      }
+    } else {
+      cell.removeAttribute?.('data-xfs-focused');
+      row?.removeAttribute?.('data-xfs-focused');
+    }
+    if (mutual) {
+      mutuals++;
+      if (cell.getAttribute?.('data-xfs-mutual') !== 'true') {
+        cell.setAttribute?.('data-xfs-mutual', 'true');
+      }
+      cell.classList?.add?.('xfs-mutual-cell');
+      row?.classList?.add?.('xfs-mutual-row');
+      if (active) {
+        if (cell.getAttribute?.('data-xfs-hidden') !== 'true') {
+          cell.setAttribute?.('data-xfs-hidden', 'true');
+        }
+        if (row && row.getAttribute?.('data-xfs-hidden') !== 'true') {
+          row.setAttribute?.('data-xfs-hidden', 'true');
+        }
+      } else {
+        cell.removeAttribute?.('data-xfs-hidden');
+        row?.removeAttribute?.('data-xfs-hidden');
+      }
+    } else {
+      cell.removeAttribute?.('data-xfs-mutual');
+      cell.removeAttribute?.('data-xfs-hidden');
+      cell.classList?.remove?.('xfs-mutual-cell');
+      row?.removeAttribute?.('data-xfs-hidden');
+      row?.classList?.remove?.('xfs-mutual-row');
+    }
+  }
+
+  const total = cells.length;
+  const nonFollowers = total - mutuals;
+  const labelText = formatFollowingFilterLabel(active);
+
+  if (typeof root.createElement === 'function' && (primary.appendChild || primary.insertBefore)) {
+    let bar = root.getElementById?.('xfs-following-filter-bar') || primary.querySelector?.('#xfs-following-filter-bar');
+    let btn = root.getElementById?.('xfs-non-follower-toggle') || bar?.querySelector?.('#xfs-non-follower-toggle');
+    if (!bar) {
+      bar = root.createElement('div');
+      bar.id = 'xfs-following-filter-bar';
+      btn = root.createElement('button');
+      btn.id = 'xfs-non-follower-toggle';
+      btn.type = 'button';
+      btn.addEventListener?.('click', () => {
+        setFilterNonFollowers(!filterNonFollowers, true);
+      });
+      bar.appendChild?.(btn);
+    }
+    const tablist = primary.querySelector?.('[role="tablist"]');
+    const navAnchor = tablist?.closest?.('nav[role="navigation"], nav')?.parentNode || tablist;
+    if (navAnchor?.parentNode?.insertBefore) {
+      if (bar.parentNode !== navAnchor.parentNode || bar.previousSibling !== navAnchor) {
+        navAnchor.parentNode.insertBefore(bar, navAnchor.nextSibling || null);
+      }
+    } else if (!bar.parentNode) {
+      if (primary.insertBefore) {
+        primary.insertBefore(bar, primary.firstChild || null);
+      } else {
+        primary.appendChild?.(bar);
+      }
+    }
+    const activeStr = String(active);
+    if (bar.getAttribute?.('data-xfs-active') !== activeStr) {
+      bar.setAttribute?.('data-xfs-active', activeStr);
+    }
+    if (btn) {
+      const hintStr = String(Boolean(showUiHints));
+      if (btn.getAttribute?.('aria-pressed') !== activeStr) {
+        btn.setAttribute?.('aria-pressed', activeStr);
+      }
+      if (btn.getAttribute?.('data-xfs-hint') !== hintStr) {
+        btn.setAttribute?.('data-xfs-hint', hintStr);
+      }
+      if (btn.textContent !== labelText) {
+        btn.textContent = labelText;
+      }
+    }
+  }
+
+  return { total, nonFollowers, mutuals, active };
+}
+
 function syncUiHints() {
   if (typeof document === 'undefined' || !document.documentElement) return;
   document.getElementById('xfs-hud')?.remove();
   for (const badge of document.querySelectorAll?.('.xfs-key-badge') || []) {
     badge.remove();
   }
+  syncFollowingFilter(document);
   if (!showUiHints) {
     for (const prev of document.querySelectorAll?.('[data-xfs-target="true"]') || []) {
       prev.removeAttribute?.('data-xfs-target');
@@ -1137,6 +1686,16 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
     return true;
   }
 
+  // 8b. On /following: step between cells on J / K and align selected cell directly below sticky header + filter bar
+  if ((code === 'KeyJ' || code === 'KeyK') && isFollowingPage()) {
+    if (stepFollowingCell(code, root)) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      return true;
+    }
+  }
+
   // 9. All other X.com "?" single-key shortcuts: j, k, Space, ., n, /, l, r, t, s, b, u, x, Enter, o, i, m
   if (SINGLE_X_SHORTCUT_CODES.has(code)) {
     const spec = codeToNativeSpec(code, false);
@@ -1188,6 +1747,24 @@ function handleActionIfMatched(e, root = document, forceDispatch = false) {
         return true;
       }
     }
+
+    // 2b. On /following: Shift + F toggles the "Non-followers only" filter in any input language
+    if (
+      isFollowingPage() &&
+      !activePrefix &&
+      e.shiftKey &&
+      !e.ctrlKey &&
+      !e.altKey &&
+      !e.metaKey &&
+      resolveKeyCode(e) === 'KeyF'
+    ) {
+      clearPendingPrefix();
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      setFilterNonFollowers(!filterNonFollowers, true);
+      return true;
+    }
   }
 
   // 3. Otherwise handle X.com "?" shortcuts across all input languages / IMEs
@@ -1228,7 +1805,11 @@ function startRepeatTimer(code) {
         clearRepeatTimer();
         return;
       }
-      dispatchNativeSpec(spec, {}, document);
+      if (isFollowingPage()) {
+        stepFollowingCell(code, document);
+      } else {
+        dispatchNativeSpec(spec, {}, document);
+      }
     }, 85);
   }, 400);
 }
@@ -1345,6 +1926,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
       const observer = new MutationObserver(scheduleUiSync);
       observer.observe(document.documentElement, { childList: true, subtree: true });
     }
+    syncUiHints();
     scheduleUiSync();
   };
 
@@ -1364,6 +1946,9 @@ if (typeof module !== 'undefined') {
     isEditable,
     matchesShortcut,
     isFollowListPage,
+    isFollowingPage,
+    isFollowingFilterActive,
+    isMutualFollowerCell,
     isStatusPage,
     findConfirmationDialogButton,
     findFollowListTabLink,
@@ -1371,6 +1956,9 @@ if (typeof module !== 'undefined') {
     handleActionIfMatched,
     clearPendingPrefix,
     setShowUiHints,
+    getFilterNonFollowers,
+    setFilterNonFollowers,
+    syncFollowingFilter,
     syncUiHints
   };
 }

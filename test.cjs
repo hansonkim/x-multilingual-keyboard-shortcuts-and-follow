@@ -10,12 +10,17 @@ const {
   isEditable,
   matchesShortcut,
   isFollowListPage,
+  isFollowingPage,
+  isMutualFollowerCell,
   isStatusPage,
   findConfirmationDialogButton,
   findProfileFollowButton,
   handleActionIfMatched,
   clearPendingPrefix,
   setShowUiHints,
+  getFilterNonFollowers,
+  setFilterNonFollowers,
+  syncFollowingFilter,
   syncUiHints
 } = require('./content.js');
 
@@ -621,5 +626,321 @@ for (const lang of ['ko', 'en', 'zh', 'ja']) {
     assert.equal(I18N[lang][k].length > 0, true);
   }
 }
+
+// 14. Following page (/following) non-follower filter: detection, DOM filtering, Shift+F toggle, and J/K skip of mutuals
+assert.equal(isFollowingPage('/Hanssony_/following'), true);
+assert.equal(isFollowingPage('/Hanssony_/following/'), true);
+assert.equal(isFollowingPage('/Hanssony_/followers'), false);
+assert.equal(isFollowingPage('/Hanssony_/verified_followers'), false);
+assert.equal(isFollowingPage('/Hanssony_'), false);
+
+// 14a. Mutual follower detection (userFollowIndicator testid, localized badge text, and bio exclusion)
+assert.equal(
+  isMutualFollowerCell({
+    querySelector: (sel) => (sel === '[data-testid="userFollowIndicator"]' ? {} : null),
+    querySelectorAll: () => []
+  }),
+  true
+);
+assert.equal(
+  isMutualFollowerCell({
+    querySelector: () => null,
+    querySelectorAll: () => [
+      { children: [], textContent: ' 나를 팔로우합니다 ', closest: () => null }
+    ]
+  }),
+  true
+);
+assert.equal(
+  isMutualFollowerCell({
+    querySelector: () => null,
+    querySelectorAll: () => [
+      { children: [], textContent: 'Follows you', closest: (sel) => (sel.includes('UserDescription') ? {} : null) }
+    ]
+  }),
+  false,
+  'Bio text containing "Follows you" inside UserDescription must not mark user as mutual follower'
+);
+assert.equal(
+  isMutualFollowerCell({
+    querySelector: () => null,
+    querySelectorAll: () => [{ children: [], textContent: '@user_01', closest: () => null }]
+  }),
+  false
+);
+
+// 14b. syncFollowingFilter, Shift+F (and Korean Shift+ㄹ) shortcut, and J/K skipping hidden mutual cells
+function createFilterCell(id, isMutual) {
+  const cellAttrs = new Map();
+  const rowAttrs = new Map();
+  const cellClasses = new Set();
+  const rowClasses = new Set();
+  const btn = makeMockFollowBtn(`${id}-btn`);
+  let row;
+  const link = {
+    id: `${id}-link`,
+    isConnected: true,
+    focus() {},
+    closest(sel) {
+      if (sel === '[data-testid="UserCell"]') return cell;
+      if (sel === '[data-testid="cellInnerDiv"]') return row;
+      return null;
+    }
+  };
+  const cell = {
+    id,
+    getAttribute: (k) => cellAttrs.get(k) ?? null,
+    setAttribute: (k, v) => cellAttrs.set(k, String(v)),
+    removeAttribute: (k) => cellAttrs.delete(k),
+    classList: {
+      add: (c) => cellClasses.add(c),
+      remove: (c) => cellClasses.delete(c),
+      contains: (c) => cellClasses.has(c)
+    },
+    closest: (sel) => (sel === '[data-testid="cellInnerDiv"]' ? row : null),
+    scrollIntoView() {},
+    querySelector(sel) {
+      if (sel === '[data-testid="userFollowIndicator"]') return isMutual ? {} : null;
+      if (sel === 'a[role="link"][tabindex="-1"]') return link;
+      if (sel.includes('-follow')) return btn;
+      return null;
+    },
+    querySelectorAll: () => []
+  };
+  row = {
+    id: `${id}-row`,
+    getAttribute: (k) => rowAttrs.get(k) ?? null,
+    setAttribute: (k, v) => rowAttrs.set(k, String(v)),
+    removeAttribute: (k) => rowAttrs.delete(k),
+    classList: {
+      add: (c) => rowClasses.add(c),
+      remove: (c) => rowClasses.delete(c),
+      contains: (c) => rowClasses.has(c)
+    },
+    querySelector: (sel) => (sel === '[data-testid="UserCell"]' ? cell : null)
+  };
+  return { cell, row, link, btn };
+}
+
+const fUser1 = createFilterCell('u1-nonfollower', false);
+const fUser2 = createFilterCell('u2-mutual', true);
+const fUser3 = createFilterCell('u3-nonfollower', false);
+let fUser1Top = 161;
+let fUser2Top = 271;
+let fUser3Top = 361;
+fUser1.row.getBoundingClientRect = () => ({ top: fUser1Top, bottom: fUser1Top + 110, height: 110 });
+fUser2.row.getBoundingClientRect = () => ({ top: fUser2Top, bottom: fUser2Top + 90, height: 90 });
+fUser3.row.getBoundingClientRect = () => ({ top: fUser3Top, bottom: fUser3Top + 120, height: 120 });
+const allFilterCells = [fUser1.cell, fUser2.cell, fUser3.cell];
+const allFilterNodes = new Set([
+  fUser1.cell, fUser1.row, fUser1.link,
+  fUser2.cell, fUser2.row, fUser2.link,
+  fUser3.cell, fUser3.row, fUser3.link
+]);
+
+let filterBarEl = null;
+let filterBtnEl = null;
+const filterSection = {
+  id: 'timeline-section',
+  style: { marginTop: '' }
+};
+const filterNavWrapper = { id: 'nav-wrapper', nextSibling: null };
+const filterNavParent = {
+  insertBefore(el) {
+    filterBarEl = el;
+    el.parentNode = filterNavParent;
+    el.previousSibling = filterNavWrapper;
+  }
+};
+filterNavWrapper.parentNode = filterNavParent;
+const filterNav = { parentNode: filterNavWrapper };
+const filterSwipeableList = {
+  insertBefore() {
+    throw new Error('Filter bar must not be inserted inside ScrollSnap-SwipeableList');
+  }
+};
+const filterTablist = {
+  parentNode: filterSwipeableList,
+  closest(sel) {
+    if (sel.includes('nav')) return filterNav;
+    return null;
+  }
+};
+const filterPrimaryAttrs = new Map();
+const filterPrimaryClasses = new Set();
+const filterPrimary = {
+  contains: (node) => allFilterNodes.has(node),
+  getAttribute: (k) => filterPrimaryAttrs.get(k) ?? null,
+  setAttribute: (k, v) => filterPrimaryAttrs.set(k, String(v)),
+  removeAttribute: (k) => filterPrimaryAttrs.delete(k),
+  classList: {
+    add: (c) => filterPrimaryClasses.add(c),
+    remove: (c) => filterPrimaryClasses.delete(c),
+    contains: (c) => filterPrimaryClasses.has(c)
+  },
+  insertBefore(el) {
+    filterBarEl = el;
+  },
+  appendChild(el) {
+    filterBarEl = el;
+  },
+  querySelector(sel) {
+    if (sel === '#xfs-following-filter-bar') return filterBarEl;
+    if (sel.includes('section')) return filterSection;
+    if (sel === '[role="tablist"]') return filterTablist;
+    return null;
+  },
+  querySelectorAll(sel) {
+    if (sel === '[data-testid="UserCell"]') return allFilterCells;
+    return [];
+  }
+};
+
+const docAttrs = new Map();
+const followingDoc = {
+  body: mockBody,
+  activeElement: null,
+  documentElement: {
+    lang: 'ko',
+    style: { setProperty() {} },
+    getAttribute: (k) => docAttrs.get(k) ?? null,
+    setAttribute: (k, v) => docAttrs.set(k, String(v)),
+    removeAttribute: (k) => docAttrs.delete(k)
+  },
+  head: { appendChild() {} },
+  getElementById(id) {
+    if (id === 'xfs-following-filter-bar') return filterBarEl;
+    if (id === 'xfs-non-follower-toggle') return filterBtnEl;
+    return null;
+  },
+  createElement(tag) {
+    const attrs = new Map();
+    const el = {
+      tagName: tag.toUpperCase(),
+      id: '',
+      textContent: '',
+      getAttribute: (k) => attrs.get(k) ?? null,
+      setAttribute: (k, v) => attrs.set(k, String(v)),
+      removeAttribute: (k) => attrs.delete(k),
+      addEventListener(type, fn) {
+        if (type === 'click') el.onClick = fn;
+      },
+      appendChild(child) {
+        if (child.id === 'xfs-non-follower-toggle') filterBtnEl = child;
+      },
+      getBoundingClientRect() {
+        return { top: 107, bottom: 161, height: 54 };
+      },
+      remove() {
+        if (el === filterBarEl) filterBarEl = null;
+      }
+    };
+    return el;
+  },
+  querySelector(sel) {
+    if (sel === '[data-testid="primaryColumn"]') return filterPrimary;
+    return null;
+  },
+  querySelectorAll(sel) {
+    if (sel.includes('data-xfs-mutual')) {
+      return [
+        ...allFilterCells,
+        fUser1.row, fUser2.row, fUser3.row
+      ].filter((n) => n.getAttribute('data-xfs-mutual') === 'true' || n.getAttribute('data-xfs-hidden') === 'true');
+    }
+    return [];
+  }
+};
+
+globalThis.location = { pathname: '/Hanssony_/following' };
+globalThis.document = followingDoc;
+let totalScrolledY = 0;
+globalThis.window = {
+  scrollBy(x, y) {
+    totalScrolledY += y;
+    fUser1Top -= y;
+    fUser2Top -= y;
+    fUser3Top -= y;
+  }
+};
+
+setFilterNonFollowers(false);
+const statsOff = syncFollowingFilter(followingDoc, '/Hanssony_/following');
+assert.deepEqual(statsOff, { total: 3, nonFollowers: 2, mutuals: 1, active: false });
+assert.equal(fUser2.cell.getAttribute('data-xfs-mutual'), 'true');
+assert.equal(fUser2.cell.getAttribute('data-xfs-hidden'), null);
+assert.equal(filterBarEl.getAttribute('data-xfs-active'), 'false');
+assert.equal(filterBtnEl.getAttribute('aria-pressed'), 'false');
+assert.equal(filterBtnEl.textContent.includes('OFF'), true);
+assert.equal(filterSection.style.marginTop, '');
+assert.equal(fUser1.row.getBoundingClientRect().top, filterBarEl.getBoundingClientRect().bottom, 'On initial load before J/K, first row must sit flush below filter bar without extra gap');
+
+// When filter is OFF on /following, J / K steps across all cells (u1 -> u2 -> u3) and aligns each cell directly below the sticky filter bar (y = 161)
+followingDoc.activeElement = null;
+assert.equal(handleActionIfMatched(makeEv({ key: 'j', code: 'KeyJ' }), followingDoc, false), true);
+assert.equal(followingDoc.activeElement, fUser1.link);
+assert.equal(fUser1.row.getBoundingClientRect().top, 161);
+assert.equal(handleActionIfMatched(makeEv({ key: 'j', code: 'KeyJ' }), followingDoc, false), true);
+assert.equal(followingDoc.activeElement, fUser2.link, 'When filter is OFF, J visits mutual user u2');
+assert.equal(fUser2.row.getBoundingClientRect().top, 161, 'Selected row u2 must align flush with sticky filter bar bottom (161px) without being covered');
+assert.equal(fUser2.cell.getAttribute('data-xfs-focused'), 'true');
+assert.equal(handleActionIfMatched(makeEv({ key: 'k', code: 'KeyK' }), followingDoc, false), true);
+assert.equal(followingDoc.activeElement, fUser1.link);
+assert.equal(fUser1.row.getBoundingClientRect().top, 161);
+
+// Toggle ON via Shift+ㄹ (Korean IME Shift+F) on /following
+assert.equal(
+  handleActionIfMatched(makeEv({ key: 'ㄹ', code: 'KeyF', shiftKey: true }), followingDoc, false),
+  true
+);
+assert.equal(getFilterNonFollowers(), true);
+assert.equal(fUser1.cell.getAttribute('data-xfs-hidden'), null);
+assert.equal(fUser2.cell.getAttribute('data-xfs-hidden'), 'true');
+assert.equal(fUser2.row.getAttribute('data-xfs-hidden'), 'true');
+assert.equal(fUser3.cell.getAttribute('data-xfs-hidden'), null);
+assert.equal(filterBarEl.getAttribute('data-xfs-active'), 'true');
+assert.equal(filterBtnEl.getAttribute('aria-pressed'), 'true');
+assert.equal(filterBtnEl.textContent.includes('ON'), true);
+
+// When filter is ON, J / K steps across visible non-followers only (u1 -> u3, skipping mutual u2) and updates data-xfs-focused
+followingDoc.activeElement = null;
+setFilterNonFollowers(false);
+setFilterNonFollowers(true);
+// Because u1 was already remembered as focused before toggling ON, pressing J steps directly to the next visible non-follower (u3), skipping mutual u2!
+assert.equal(handleActionIfMatched(makeEv({ key: 'ㅓ', code: 'KeyJ' }), followingDoc, false), true);
+assert.equal(followingDoc.activeElement, fUser3.link, 'Pressing J from u1 must skip hidden mutual user u2 and focus u3');
+assert.equal(fUser3.row.getBoundingClientRect().top, 161, 'Selected non-follower u3 must align flush below sticky filter bar (161px)');
+assert.equal(fUser1.cell.getAttribute('data-xfs-focused'), null);
+assert.equal(fUser1.row.getAttribute('data-xfs-focused'), null);
+assert.equal(fUser3.cell.getAttribute('data-xfs-focused'), 'true');
+assert.equal(fUser3.row.getAttribute('data-xfs-focused'), 'true');
+assert.equal(findProfileFollowButton(followingDoc, '/Hanssony_/following'), fUser3.btn);
+
+assert.equal(handleActionIfMatched(makeEv({ key: 'ㅏ', code: 'KeyK' }), followingDoc, false), true);
+assert.equal(followingDoc.activeElement, fUser1.link, 'Pressing K must skip hidden mutual user u2 and return to u1');
+assert.equal(fUser1.row.getBoundingClientRect().top, 161);
+assert.equal(fUser1.cell.getAttribute('data-xfs-focused'), 'true');
+assert.equal(fUser3.cell.getAttribute('data-xfs-focused'), null);
+assert.equal(findProfileFollowButton(followingDoc, '/Hanssony_/following'), fUser1.btn);
+
+assert.equal(handleActionIfMatched(makeEv({ key: 'j', code: 'KeyJ' }), followingDoc, false), true);
+assert.equal(followingDoc.activeElement, fUser3.link, 'Pressing J again steps to u3');
+assert.equal(fUser3.row.getBoundingClientRect().top, 161);
+assert.equal(fUser3.cell.getAttribute('data-xfs-focused'), 'true');
+
+// If focus is somehow on mutual user u2 while filter is active (and no prior filtered cell is remembered), findProfileFollowButton returns null
+setFilterNonFollowers(false);
+setFilterNonFollowers(true);
+followingDoc.activeElement = fUser2.link;
+assert.equal(findProfileFollowButton(followingDoc, '/Hanssony_/following'), null);
+
+// Leaving /following cleans up filter bar and hidden attributes
+const statsFollowers = syncFollowingFilter(followingDoc, '/Hanssony_/followers');
+assert.equal(statsFollowers.active, false);
+assert.equal(filterBarEl, null);
+assert.equal(fUser2.cell.getAttribute('data-xfs-hidden'), null);
+assert.equal(filterSection.style.marginTop, '');
+
+setFilterNonFollowers(false);
 
 console.log('All assertions passed.');

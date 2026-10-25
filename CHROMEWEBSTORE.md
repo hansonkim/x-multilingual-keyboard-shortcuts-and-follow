@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — X Multilingual Keyboard Shortcuts & Follow
 
-> Last Updated: 2026-10-15
+> Last Updated: 2026-10-25
 
 ## Store Listing
 
@@ -8,7 +8,7 @@
 X Multilingual Keyboard Shortcuts & Follow
 
 **Short Description** [REQUIRED]
-Use all X.com keyboard shortcuts plus Follow/Unfollow (F), Modal (Y/N), and Tab navigation (g v/w/o) in any input language.
+Use all X.com keyboard shortcuts plus Follow/Unfollow (F), Non-Follower Filter (Shift+F), Modal (Y/N), and Tab nav (g v/w/o) in any IME.
 
 **Detailed Description** [REQUIRED]
 X Multilingual Keyboard Shortcuts & Follow adds fast keyboard shortcuts for following/unfollowing accounts on X.com and makes every X.com keyboard shortcut work seamlessly across Korean, Japanese, Chinese, Russian, Arabic, and other input languages (IME) without switching your keyboard layout to English.
@@ -20,8 +20,9 @@ Key Features:
    - Hover Cards: When a user profile hover card is open, pressing F targets the hover card's Follow/Unfollow button.
 2. Quick Confirmation Dialog Shortcuts (Y / N):
    - When an Unfollow, Mute, or Block confirmation dialog appears, press Y to confirm or N to cancel without using your mouse.
-3. Follower & Following List Navigation (g v / g w / g o):
+3. Follower & Following List Navigation (g v / g w / g o) & Non-Follower Filter (Shift+F):
    - Press g v (Verified Followers), g w (Followers), or g o (Following) from any page on X.com to jump directly to the corresponding tab.
+   - On the Following (/following) page, click the filter pill or press Shift+F to show only accounts that do not follow you back, while J / K skips hidden mutual followers automatically.
 4. Full Multilingual Support for All X.com (?) Shortcuts:
    - Use every built-in X.com shortcut (?, j, k, Space, ., n, /, l, r, t, s, b, u, x, Enter, o, i, m, e for Quote, g + h/e/n/r/p/f/t/l/i/m/g/c/s/b/u/d, and a + d/Space/m) directly while typing in Korean, Japanese, Chinese, Russian, Arabic, or full-width IME modes.
 5. On-Screen Shortcut Hints (Show / Hide Option):
@@ -93,7 +94,8 @@ https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/issues
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.0.8 | 2026-10-16 | Add 4-language UI support (Korean, English, Chinese, Japanese) with auto-detection and language selector in the extension popup panel, plus Safari Userscript support. | Submitted |
+| 1.0.9 | 2026-10-25 | Add Non-Follower Filter (`Shift+F` / sticky toggle bar) on `/following` to show only accounts that do not follow back, skip hidden mutuals on `J`/`K`, and align selected rows below the sticky header. | Submitted |
+| 1.0.8 | 2026-10-16 | Add 4-language UI support (Korean, English, Chinese, Japanese) with auto-detection and language selector in the extension popup panel, plus Safari Userscript support. | Published |
 | 1.0.7 | 2026-10-15 | Rename extension to "X Multilingual Keyboard Shortcuts & Follow" to reflect full multilingual shortcut and follow capabilities. | Published |
 | 1.0.6 | 2026-10-15 | Support all X.com (?) shortcuts across multilingual IMEs, continuous J/K hold repeat, status page follow, selected-row-only F hint on follow lists, g v/w/o follow tab shortcuts from any page, and show/hide UI hint toggle. | Superseded |
 | 1.0.3 | 2026-10-14 | Display on-screen key badges (F, Y, N) on buttons, floating shortcut HUD, and X shortcut reference in popup. | Superseded |

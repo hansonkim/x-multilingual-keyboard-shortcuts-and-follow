@@ -2,9 +2,9 @@
 
 **语言 (Languages)**: [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.7-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.9-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
 
-无需切换到英文输入法，即可在**中文、韩语、日语、俄语、阿拉伯语及全角输入法（IME）**下直接使用 **X.com (Twitter) 的所有原生快捷键（`?`）**，并新增**关注/取消关注（`F`）**、**确认弹窗（`Y`/`N`）**以及**关注者/正在关注标签页跳转（`G` `V` / `G` `W` / `G` `O`）**快捷键。
+无需切换到英文输入法，即可在**中文、韩语、日语、俄语、阿拉伯语及全角输入法（IME）**下直接使用 **X.com (Twitter) 的所有原生快捷键（`?`）**，并新增**关注/取消关注（`F`）**、**未回关用户筛选（`Shift+F`）**、**确认弹窗（`Y`/`N`）**以及**关注者/正在关注标签页跳转（`G` `V` / `G` `W` / `G` `O`）**快捷键。
 
 ---
 
@@ -24,8 +24,9 @@
    - **资料悬浮卡片（Hover Card）**：当用户资料预览卡片打开时，按 `F` 会优先触发卡片内的关注/取消关注按钮。
 2. **确认弹窗快捷键（`Y` / `N`）**
    - 当出现取消关注、静音或屏蔽确认弹窗时，无需鼠标，直接按 `Y` 确认或按 `N` 取消。
-3. **关注者 / 正在关注标签页快速跳转（`G` `V` / `G` `W` / `G` `O`）**
+3. **关注者 / 正在关注标签页快速跳转（`G` `V` / `G` `W` / `G` `O`）与未回关用户筛选（`Shift + F`）**
    - 在 X.com 任意页面按下 `G` `V`（**认证关注者**）、`G` `W`（**关注者**）或 `G` `O`（**正在关注**），即可直接跳转到对应标签页。
+   - 在**正在关注**（`/following`）页面点击标签栏下方的固定筛选按钮或按下 `Shift + F`（`⇧F`），即可仅显示未回关你的账号；开启后按 `J` / `K` 会自动跳过互相关注的账号，并将选中卡片对齐在固定标签栏正下方。
 4. **全多语言输入法支持所有 X.com（`?`）原生快捷键**
    - 在中文、韩文、日文、俄文、阿拉伯文或全角输入模式下，直接按下物理按键即可触发所有 X.com 原生快捷键（`?`、`J`、`K`、`Space`、`.`、`N`、`/`、`L`、`R`、`T`、`S`、`B`、`U`、`X`、`Enter`、`O`、`I`、`M`、引用 `E`、`G + H/E/N/R/P/F/T/L/I/M/G/C/S/B/U/D`、`A + D/Space/M`）。
 5. **界面快捷键提示标签（可随时显示 / 隐藏）**
@@ -54,6 +55,7 @@
 | 快捷键 | 功能说明 |
 | --- | --- |
 | `F` *(可自定义)* | 在个人主页、帖子详情页、悬浮卡片或 `J`/`K` 选中的列表项上关注 / 取消关注 / 回关 |
+| `⇧F` (`Shift + F`) | 在**正在关注**（`/following`）页面切换仅显示未回关你的用户 |
 | `Y` / `N` | 在取消关注、静音、屏蔽确认弹窗中确认（`Y`）或取消（`N`） |
 | `G` 然后 `V` | 跳转到**认证关注者**（`/verified_followers`） |
 | `G` 然后 `W` | 跳转到**关注者**（`/followers`） |

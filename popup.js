@@ -16,13 +16,17 @@ const I18N = {
     statusSaveFailed: '저장 실패',
     statusHintsOn: '단축키 UI 표시 켜짐',
     statusHintsOff: '단축키 UI 표시 꺼짐',
+    statusFilterOn: '맞팔 안 한 계정만 보기 켜짐',
+    statusFilterOff: '맞팔 안 한 계정만 보기 꺼짐',
     statusWaiting: '입력 대기 중',
     statusClickToSet: '클릭 후 새 단축키 입력',
     recorderPrompt: '키 조합을 누르세요...',
     resetBtn: '초기화 (F)',
     toggleHints: '버튼·메뉴에 단축키 UI 표시',
+    toggleNonFollowers: '팔로잉 목록에서 맞팔 안 한 계정만 보기 (⇧F)',
     extSectionTitle: '확장 프로그램 추가 단축키',
     extFollowDesc: '프로필 / 게시물(status) / 팔로워·팔로잉 목록에서 팔로우·언팔로우·서로 팔로우',
+    extFilterDesc: '팔로잉(/following) 페이지에서 나를 팔로우하지 않는 사용자만 필터링 토글',
     extModalDesc: '언팔로우·차단·뮤트 확인 모달에서 확인(Y) / 취소(N)',
     extTabDesc: '인증된 팔로워(V) / 팔로워(W) / 팔로잉(O) 이동',
     extQuoteDesc: '재게시 메뉴 열기 / 인용(Quote) 바로 선택',
@@ -49,13 +53,17 @@ const I18N = {
     statusSaveFailed: 'Save failed',
     statusHintsOn: 'Shortcut UI hints enabled',
     statusHintsOff: 'Shortcut UI hints disabled',
+    statusFilterOn: 'Non-followers filter enabled',
+    statusFilterOff: 'Non-followers filter disabled',
     statusWaiting: 'Listening for key...',
     statusClickToSet: 'Click to set a new shortcut',
     recorderPrompt: 'Press any key combination...',
     resetBtn: 'Reset (F)',
     toggleHints: 'Show shortcut hints on buttons & menus',
+    toggleNonFollowers: 'Filter non-followers on /following (⇧F)',
     extSectionTitle: 'Extension Added Shortcuts',
     extFollowDesc: 'Follow / Unfollow / Follow Back on Profile, Post Status, or J/K list item',
+    extFilterDesc: 'Toggle filtering users who do not follow you back on /following',
     extModalDesc: 'Confirm (Y) or Cancel (N) in Unfollow, Block, and Mute dialogs',
     extTabDesc: 'Go to Verified Followers (V) / Followers (W) / Following (O)',
     extQuoteDesc: 'Open Repost menu / Select Quote directly',
@@ -82,13 +90,17 @@ const I18N = {
     statusSaveFailed: '保存失败',
     statusHintsOn: '快捷键 UI 提示已开启',
     statusHintsOff: '快捷键 UI 提示已关闭',
+    statusFilterOn: '仅看未回关筛选已开启',
+    statusFilterOff: '仅看未回关筛选已关闭',
     statusWaiting: '等待按键输入...',
     statusClickToSet: '点击设置新快捷键',
     recorderPrompt: '请按下按键组合...',
     resetBtn: '重置 (F)',
     toggleHints: '在按钮和菜单上显示快捷键提示',
+    toggleNonFollowers: '在正在关注列表中仅看未回关用户 (⇧F)',
     extSectionTitle: '扩展新增快捷键',
     extFollowDesc: '在个人主页 / 帖子详情 / 关注列表中关注·取消关注·回关',
+    extFilterDesc: '在正在关注(/following)页面筛选未回关你的用户',
     extModalDesc: '在取消关注·屏蔽·静音确认弹窗中确认(Y) / 取消(N)',
     extTabDesc: '跳转到认证关注者(V) / 关注者(W) / 正在关注(O)',
     extQuoteDesc: '打开转发菜单 / 直接选择引用(Quote)',
@@ -115,13 +127,17 @@ const I18N = {
     statusSaveFailed: '保存に失敗しました',
     statusHintsOn: 'ショートカット UI 表示：オン',
     statusHintsOff: 'ショートカット UI 表示：オフ',
+    statusFilterOn: '片思いフィルター：オン',
+    statusFilterOff: '片思いフィルター：オフ',
     statusWaiting: 'キー入力を待機中...',
     statusClickToSet: 'クリックして新しいキーを設定',
     recorderPrompt: 'キーの組み合わせを押してください...',
     resetBtn: 'リセット (F)',
     toggleHints: 'ボタン・メニューにショートカット UI を表示',
+    toggleNonFollowers: 'フォロー中一覧で片思い（未フォローバック）のみ表示 (⇧F)',
     extSectionTitle: '拡張機能で追加されるショートカット',
     extFollowDesc: 'プロフィール / ポスト詳細 / フォロワー・フォロー中一覧でフォロー・解除',
+    extFilterDesc: 'フォロー中(/following)ページでフォローされていないユーザーのみ表示切替',
     extModalDesc: 'フォロー解除・ブロック・ミュート確認モーダルで確認(Y) / キャンセル(N)',
     extTabDesc: '認証済みフォロワー(V) / フォロワー(W) / フォロー中(O) へ移動',
     extQuoteDesc: 'リポストメニューを開く / 引用(Quote)を直接選択',
@@ -282,6 +298,7 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   const statusEl = document.getElementById('status');
   const resetBtn = document.getElementById('reset');
   const showUiHintsInput = document.getElementById('show-ui-hints');
+  const filterNonFollowersInput = document.getElementById('filter-non-followers');
   const langSelect = document.getElementById('lang-select');
   let recording = false;
 
@@ -331,9 +348,15 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   document.addEventListener('DOMContentLoaded', async () => {
     applyLanguage(currentLang);
     try {
-      const { shortcut = DEFAULT_SHORTCUT, showUiHints = true, uiLang } = await chrome.storage.sync.get([
+      const {
+        shortcut = DEFAULT_SHORTCUT,
+        showUiHints = true,
+        filterNonFollowers = false,
+        uiLang
+      } = await chrome.storage.sync.get([
         'shortcut',
         'showUiHints',
+        'filterNonFollowers',
         'uiLang'
       ]);
       if (uiLang && I18N[uiLang]) {
@@ -344,6 +367,9 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
       renderShortcutLabel({ ...DEFAULT_SHORTCUT, ...shortcut });
       if (showUiHintsInput) {
         showUiHintsInput.checked = Boolean(showUiHints);
+      }
+      if (filterNonFollowersInput) {
+        filterNonFollowersInput.checked = Boolean(filterNonFollowers);
       }
     } catch (err) {
       console.error(err);
@@ -368,6 +394,19 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
         const checked = Boolean(showUiHintsInput.checked);
         await chrome.storage.sync.set({ showUiHints: checked });
         setStatus(checked ? 'statusHintsOn' : 'statusHintsOff');
+      } catch (err) {
+        setStatus('statusSaveFailed');
+        console.error(err);
+      }
+    });
+  }
+
+  if (filterNonFollowersInput) {
+    filterNonFollowersInput.addEventListener('change', async () => {
+      try {
+        const checked = Boolean(filterNonFollowersInput.checked);
+        await chrome.storage.sync.set({ filterNonFollowers: checked });
+        setStatus(checked ? 'statusFilterOn' : 'statusFilterOff');
       } catch (err) {
         setStatus('statusSaveFailed');
         console.error(err);

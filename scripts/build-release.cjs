@@ -7,6 +7,15 @@ const distDir = path.join(rootDir, 'dist');
 const manifest = JSON.parse(fs.readFileSync(path.join(rootDir, 'manifest.json'), 'utf8'));
 const contentJs = fs.readFileSync(path.join(rootDir, 'content.js'), 'utf8');
 
+// 0. Pre-release test gates: unit tests + ego-browser (princejoo profile) live E2E when available
+execFileSync(process.execPath, [path.join(rootDir, 'test.cjs')], { cwd: rootDir, stdio: 'inherit' });
+if (!process.env.CI && !process.env.SKIP_EGO_E2E) {
+  execFileSync(process.execPath, [path.join(rootDir, 'scripts', 'test-e2e-ego.cjs')], {
+    cwd: rootDir,
+    stdio: 'inherit'
+  });
+}
+
 fs.mkdirSync(distDir, { recursive: true });
 
 // 1. Build Safari / cross-browser Userscript (.user.js)
