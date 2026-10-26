@@ -714,7 +714,12 @@ function alignFollowingCellBelowHeader(targetCell, primary, root = document) {
   applyAlign();
   if (typeof setTimeout === 'function') {
     for (const ms of [35, 90, 150]) {
-      setTimeout(applyAlign, ms);
+      setTimeout(() => {
+        applyAlign();
+        if (typeof document !== 'undefined' && root === document) {
+          syncUiHints();
+        }
+      }, ms);
     }
   }
 }

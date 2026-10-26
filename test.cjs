@@ -943,4 +943,11 @@ assert.equal(filterSection.style.marginTop, '');
 
 setFilterNonFollowers(false);
 
+// Manifest description length gate (Chrome Web Store enforces <= 132 characters)
+const manifest = require('./manifest.json');
+assert.ok(
+  manifest.description.length <= 132,
+  `manifest.json description length (${manifest.description.length}) exceeds Chrome Web Store 132-char limit`
+);
+
 console.log('All assertions passed.');

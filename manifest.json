@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "X Multilingual Keyboard Shortcuts & Follow",
   "version": "1.0.9",
-  "description": "Use all X.com keyboard shortcuts plus Follow/Unfollow (F), Non-Follower Filter (Shift+F), Modal (Y/N), and Tab nav (g v/w/o) in any IME.",
+  "description": "Use all X.com shortcuts plus Follow/Unfollow (F), Non-Follower Filter (Shift+F), Modal (Y/N), and Tab nav (g v/w/o) in any IME.",
   "icons": {
     "16": "icons/icon-16.png",
     "48": "icons/icon-48.png",

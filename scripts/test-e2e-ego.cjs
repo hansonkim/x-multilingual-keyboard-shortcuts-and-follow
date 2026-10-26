@@ -102,6 +102,8 @@ try {
     for (const [k, c] of [["j", "KeyJ"], ["ㅓ", "KeyJ"], ["j", "KeyJ"], ["k", "KeyK"]]) {
       pressKey(k, c);
       await sleep(220);
+      window.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      await sleep(50);
       const bRect = document.getElementById("xfs-following-filter-bar")?.getBoundingClientRect();
       const fRow = primary?.querySelector("[data-testid=\\"cellInnerDiv\\"][data-xfs-focused=\\"true\\"]");
       const fCell = fRow?.querySelector("[data-testid=\\"UserCell\\"]");

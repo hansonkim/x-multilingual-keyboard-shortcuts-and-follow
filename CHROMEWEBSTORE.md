@@ -8,7 +8,7 @@
 X Multilingual Keyboard Shortcuts & Follow
 
 **Short Description** [REQUIRED]
-Use all X.com keyboard shortcuts plus Follow/Unfollow (F), Non-Follower Filter (Shift+F), Modal (Y/N), and Tab nav (g v/w/o) in any IME.
+Use all X.com shortcuts plus Follow/Unfollow (F), Non-Follower Filter (Shift+F), Modal (Y/N), and Tab nav (g v/w/o) in any IME.
 
 **Detailed Description** [REQUIRED]
 X Multilingual Keyboard Shortcuts & Follow adds fast keyboard shortcuts for following/unfollowing accounts on X.com and makes every X.com keyboard shortcut work seamlessly across Korean, Japanese, Chinese, Russian, Arabic, and other input languages (IME) without switching your keyboard layout to English.
