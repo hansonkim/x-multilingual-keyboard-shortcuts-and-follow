@@ -18,12 +18,19 @@ const I18N = {
     statusHintsOff: '단축키 UI 표시 꺼짐',
     statusFilterOn: '맞팔 안 한 계정만 보기 켜짐',
     statusFilterOff: '맞팔 안 한 계정만 보기 꺼짐',
+    statusCompactPillOn: '"게시됨" 플로팅 버튼 최소화 켜짐',
+    statusCompactPillOff: '"게시됨" 플로팅 버튼 최소화 꺼짐',
     statusWaiting: '입력 대기 중',
     statusClickToSet: '클릭 후 새 단축키 입력',
     recorderPrompt: '키 조합을 누르세요...',
     resetBtn: '초기화 (F)',
     toggleHints: '버튼·메뉴에 단축키 UI 표시',
     toggleNonFollowers: '팔로잉 목록에서 맞팔 안 한 계정만 보기 (⇧F)',
+    toggleCompactPill: '"게시됨" 플로팅 버튼 최소화 (컨텐츠 가림 방지)',
+    compactPillDesignLabel: '플로팅 버튼 디자인',
+    compactPillDesign1: '1. 우측 상단 글래스 캡슐',
+    compactPillDesign2: '2. 상단 탭바 밀착 슬림 바',
+    compactPillDesign3: '3. 우측 상단 초소형 아이콘 (↑ .)',
     extSectionTitle: '확장 프로그램 추가 단축키',
     extFollowDesc: '프로필 / 게시물(status) / 팔로워·팔로잉 목록에서 팔로우·언팔로우·서로 팔로우',
     extFilterDesc: '팔로잉(/following) 페이지에서 나를 팔로우하지 않는 사용자만 필터링 토글',
@@ -55,12 +62,19 @@ const I18N = {
     statusHintsOff: 'Shortcut UI hints disabled',
     statusFilterOn: 'Non-followers filter enabled',
     statusFilterOff: 'Non-followers filter disabled',
+    statusCompactPillOn: 'Compact "Posted" pill enabled',
+    statusCompactPillOff: 'Compact "Posted" pill disabled',
     statusWaiting: 'Listening for key...',
     statusClickToSet: 'Click to set a new shortcut',
     recorderPrompt: 'Press any key combination...',
     resetBtn: 'Reset (F)',
     toggleHints: 'Show shortcut hints on buttons & menus',
     toggleNonFollowers: 'Filter non-followers on /following (⇧F)',
+    toggleCompactPill: 'Minimize floating "Posted" pill (/home, /notifications*)',
+    compactPillDesignLabel: 'Floating pill design',
+    compactPillDesign1: '1. Top-right glass capsule',
+    compactPillDesign2: '2. Top-docked slim bar',
+    compactPillDesign3: '3. Top-right micro icon (↑ .)',
     extSectionTitle: 'Extension Added Shortcuts',
     extFollowDesc: 'Follow / Unfollow / Follow Back on Profile, Post Status, or J/K list item',
     extFilterDesc: 'Toggle filtering users who do not follow you back on /following',
@@ -92,12 +106,19 @@ const I18N = {
     statusHintsOff: '快捷键 UI 提示已关闭',
     statusFilterOn: '仅看未回关筛选已开启',
     statusFilterOff: '仅看未回关筛选已关闭',
+    statusCompactPillOn: '浮动新帖按钮精简已开启',
+    statusCompactPillOff: '浮动新帖按钮精简已关闭',
     statusWaiting: '等待按键输入...',
     statusClickToSet: '点击设置新快捷键',
     recorderPrompt: '请按下按键组合...',
     resetBtn: '重置 (F)',
     toggleHints: '在按钮和菜单上显示快捷键提示',
     toggleNonFollowers: '在正在关注列表中仅看未回关用户 (⇧F)',
+    toggleCompactPill: '精简浮动“已发帖”按钮（防止遮挡内容）',
+    compactPillDesignLabel: '浮动按钮样式',
+    compactPillDesign1: '1. 右上角半透明胶囊',
+    compactPillDesign2: '2. 顶部贴合超薄条',
+    compactPillDesign3: '3. 右上角迷你图标 (↑ .)',
     extSectionTitle: '扩展新增快捷键',
     extFollowDesc: '在个人主页 / 帖子详情 / 关注列表中关注·取消关注·回关',
     extFilterDesc: '在正在关注(/following)页面筛选未回关你的用户',
@@ -129,12 +150,19 @@ const I18N = {
     statusHintsOff: 'ショートカット UI 表示：オフ',
     statusFilterOn: '片思いフィルター：オン',
     statusFilterOff: '片思いフィルター：オフ',
+    statusCompactPillOn: 'フローティング通知ボタン最小化：オン',
+    statusCompactPillOff: 'フローティング通知ボタン最小化：オフ',
     statusWaiting: 'キー入力を待機中...',
     statusClickToSet: 'クリックして新しいキーを設定',
     recorderPrompt: 'キーの組み合わせを押してください...',
     resetBtn: 'リセット (F)',
     toggleHints: 'ボタン・メニューにショートカット UI を表示',
     toggleNonFollowers: 'フォロー中一覧で片思い（未フォローバック）のみ表示 (⇧F)',
+    toggleCompactPill: '「ポスト済」フローティングボタンを最小化',
+    compactPillDesignLabel: 'ボタンデザイン',
+    compactPillDesign1: '1. 右上半透明カプセル',
+    compactPillDesign2: '2. タブ下密着スリムバー',
+    compactPillDesign3: '3. 右上ミニアイコン (↑ .)',
     extSectionTitle: '拡張機能で追加されるショートカット',
     extFollowDesc: 'プロフィール / ポスト詳細 / フォロワー・フォロー中一覧でフォロー・解除',
     extFilterDesc: 'フォロー中(/following)ページでフォローされていないユーザーのみ表示切替',
@@ -299,6 +327,9 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
   const resetBtn = document.getElementById('reset');
   const showUiHintsInput = document.getElementById('show-ui-hints');
   const filterNonFollowersInput = document.getElementById('filter-non-followers');
+  const compactPillInput = document.getElementById('compact-new-posts-pill');
+  const compactPillDesignSelect = document.getElementById('compact-pill-design');
+  const compactPillDesignRow = document.getElementById('compact-pill-design-row');
   const langSelect = document.getElementById('lang-select');
   let recording = false;
 
@@ -334,8 +365,29 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     if (extFollowKey) extFollowKey.textContent = formatted;
   }
 
+  function notifyTabs(payload) {
+    if (typeof chrome === 'undefined' || !chrome.tabs || typeof chrome.tabs.query !== 'function') {
+      return;
+    }
+    try {
+      chrome.tabs.query({}, (tabs) => {
+        if (!Array.isArray(tabs)) return;
+        for (const tab of tabs) {
+          if (!tab || typeof tab.id !== 'number') continue;
+          try {
+            const p = chrome.tabs.sendMessage(tab.id, { type: 'xfs-config-update', ...payload });
+            if (p && typeof p.catch === 'function') {
+              p.catch(() => {});
+            }
+          } catch (_) {}
+        }
+      });
+    } catch (_) {}
+  }
+
   async function saveShortcut(sc) {
     try {
+      notifyTabs({ shortcut: sc });
       await chrome.storage.sync.set({ shortcut: sc });
       renderShortcutLabel(sc);
       setStatus('statusSaved');
@@ -352,11 +404,15 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
         shortcut = DEFAULT_SHORTCUT,
         showUiHints = true,
         filterNonFollowers = false,
+        compactNewPostsPill = true,
+        compactPillDesign = '3',
         uiLang
       } = await chrome.storage.sync.get([
         'shortcut',
         'showUiHints',
         'filterNonFollowers',
+        'compactNewPostsPill',
+        'compactPillDesign',
         'uiLang'
       ]);
       if (uiLang && I18N[uiLang]) {
@@ -371,6 +427,18 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
       if (filterNonFollowersInput) {
         filterNonFollowersInput.checked = Boolean(filterNonFollowers);
       }
+      if (compactPillInput) {
+        compactPillInput.checked = Boolean(compactNewPostsPill);
+      }
+      if (compactPillDesignSelect) {
+        compactPillDesignSelect.value = ['1', '2', '3'].includes(String(compactPillDesign))
+          ? String(compactPillDesign)
+          : '3';
+        compactPillDesignSelect.disabled = !compactNewPostsPill;
+      }
+      if (compactPillDesignRow) {
+        compactPillDesignRow.style.opacity = compactNewPostsPill ? '1' : '0.5';
+      }
     } catch (err) {
       console.error(err);
     }
@@ -380,6 +448,7 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     langSelect.addEventListener('change', async () => {
       const selected = langSelect.value;
       applyLanguage(selected);
+      notifyTabs({ uiLang: currentLang });
       try {
         await chrome.storage.sync.set({ uiLang: currentLang });
       } catch (err) {
@@ -392,6 +461,7 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     showUiHintsInput.addEventListener('change', async () => {
       try {
         const checked = Boolean(showUiHintsInput.checked);
+        notifyTabs({ showUiHints: checked });
         await chrome.storage.sync.set({ showUiHints: checked });
         setStatus(checked ? 'statusHintsOn' : 'statusHintsOff');
       } catch (err) {
@@ -405,8 +475,41 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     filterNonFollowersInput.addEventListener('change', async () => {
       try {
         const checked = Boolean(filterNonFollowersInput.checked);
+        notifyTabs({ filterNonFollowers: checked });
         await chrome.storage.sync.set({ filterNonFollowers: checked });
         setStatus(checked ? 'statusFilterOn' : 'statusFilterOff');
+      } catch (err) {
+        setStatus('statusSaveFailed');
+        console.error(err);
+      }
+    });
+  }
+
+  if (compactPillInput) {
+    compactPillInput.addEventListener('change', async () => {
+      try {
+        const checked = Boolean(compactPillInput.checked);
+        if (compactPillDesignSelect) compactPillDesignSelect.disabled = !checked;
+        if (compactPillDesignRow) compactPillDesignRow.style.opacity = checked ? '1' : '0.5';
+        notifyTabs({ compactNewPostsPill: checked });
+        await chrome.storage.sync.set({ compactNewPostsPill: checked });
+        setStatus(checked ? 'statusCompactPillOn' : 'statusCompactPillOff');
+      } catch (err) {
+        setStatus('statusSaveFailed');
+        console.error(err);
+      }
+    });
+  }
+
+  if (compactPillDesignSelect) {
+    compactPillDesignSelect.addEventListener('change', async () => {
+      try {
+        const val = ['1', '2', '3'].includes(compactPillDesignSelect.value)
+          ? compactPillDesignSelect.value
+          : '3';
+        notifyTabs({ compactPillDesign: val });
+        await chrome.storage.sync.set({ compactPillDesign: val });
+        setStatus('statusSaved');
       } catch (err) {
         setStatus('statusSaveFailed');
         console.error(err);

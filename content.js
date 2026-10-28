@@ -96,6 +96,7 @@ const A_PREFIX_SECOND_CODES = new Set([
 
 const FOLLOW_LIST_PATH_RE = /^\/[^/]+\/(verified_followers|followers|following|followers_you_follow)\/?$/i;
 const FOLLOWING_PATH_RE = /^\/[^/]+\/following\/?$/i;
+const COMPACT_PILL_PATH_RE = /^\/(home|notifications(?:\/.*)?)\/?$/i;
 const STATUS_PATH_RE = /^\/([^/]+)\/status\/\d+/i;
 const MUTUAL_BADGE_TEXT_RE =
   /^(follows you|나를 팔로우합니다|나를 팔로우함|フォローされています|关注了你|已关注你|跟隨你|подписан\(а\) на вас|читает вас|يتابعك)$/i;
@@ -243,6 +244,8 @@ function formatShortcutLabel(sc) {
 let shortcut = { ...DEFAULT_SHORTCUT };
 let showUiHints = true;
 let filterNonFollowers = false;
+let compactNewPostsPill = true;
+let compactPillDesign = '3';
 let uiLang = null;
 let lastFocusedCellLink = null;
 let lastFocusedFilteredCell = null;
@@ -275,6 +278,47 @@ function setFilterNonFollowers(enabled, persist = false) {
   syncUiHints();
 }
 
+function normalizeCompactPillDesign(design) {
+  const s = String(design || '').trim();
+  return s === '1' || s === '2' || s === '3' ? s : '3';
+}
+
+function getCompactNewPostsPill() {
+  return compactNewPostsPill;
+}
+
+function setCompactNewPostsPill(enabled, persist = false) {
+  compactNewPostsPill = Boolean(enabled);
+  if (persist) {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+        chrome.storage.sync.set({ compactNewPostsPill });
+      } else if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(LOCAL_STORAGE_COMPACT_PILL_KEY, String(compactNewPostsPill));
+      }
+    } catch (_) {}
+  }
+  syncUiHints();
+}
+
+function getCompactPillDesign() {
+  return compactPillDesign;
+}
+
+function setCompactPillDesign(design, persist = false) {
+  compactPillDesign = normalizeCompactPillDesign(design);
+  if (persist) {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+        chrome.storage.sync.set({ compactPillDesign });
+      } else if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(LOCAL_STORAGE_COMPACT_PILL_DESIGN_KEY, compactPillDesign);
+      }
+    } catch (_) {}
+  }
+  syncUiHints();
+}
+
 function getActivePrefix(now = Date.now()) {
   if (pendingPrefix.key && now < pendingPrefix.until) {
     return pendingPrefix.key;
@@ -295,6 +339,8 @@ function clearPendingPrefix() {
 const LOCAL_STORAGE_SHORTCUT_KEY = 'x_follow_shortcut_config';
 const LOCAL_STORAGE_HINTS_KEY = 'x_follow_shortcut_show_hints';
 const LOCAL_STORAGE_NON_FOLLOWERS_KEY = 'x_follow_shortcut_filter_non_followers';
+const LOCAL_STORAGE_COMPACT_PILL_KEY = 'x_follow_shortcut_compact_pill';
+const LOCAL_STORAGE_COMPACT_PILL_DESIGN_KEY = 'x_follow_shortcut_compact_pill_design';
 
 function loadFromLocalStorage() {
   try {
@@ -314,12 +360,20 @@ function loadFromLocalStorage() {
     if (rawFilter !== null) {
       filterNonFollowers = rawFilter === 'true';
     }
+    const rawCompactPill = localStorage.getItem(LOCAL_STORAGE_COMPACT_PILL_KEY);
+    if (rawCompactPill !== null) {
+      compactNewPostsPill = rawCompactPill !== 'false';
+    }
+    const rawCompactPillDesign = localStorage.getItem(LOCAL_STORAGE_COMPACT_PILL_DESIGN_KEY);
+    if (rawCompactPillDesign !== null) {
+      compactPillDesign = normalizeCompactPillDesign(rawCompactPillDesign);
+    }
   } catch (_) {}
 }
 
-function detectUiLang() {
+function detectUiLang(root = typeof document !== 'undefined' ? document : null) {
   if (uiLang && ['ko', 'en', 'zh', 'ja'].includes(uiLang)) return uiLang;
-  const docLang = (typeof document !== 'undefined' && document.documentElement?.lang) || '';
+  const docLang = root?.documentElement?.lang || (typeof document !== 'undefined' && document.documentElement?.lang) || '';
   const navLang = (typeof navigator !== 'undefined' && navigator.language) || 'en';
   const lower = String(docLang || navLang).toLowerCase();
   if (lower.startsWith('ko')) return 'ko';
@@ -334,6 +388,7 @@ function getUserscriptMenuStrings() {
     return {
       toggleHints: '단축키 힌트 표시/숨기기 (Toggle Shortcut Hints)',
       toggleNonFollowers: '팔로잉: 맞팔 안 한 계정만 보기 토글 (⇧F)',
+      toggleCompactPill: '"게시됨" 플로팅 버튼 최소화 토글 (Toggle Compact Pill)',
       setFollowKey: '팔로우 단축키 변경 (Set Follow Shortcut Key)',
       promptKey: (curr) => `팔로우 단축키를 입력하세요 (현재: ${curr}, 기본값: F):`
     };
@@ -342,6 +397,7 @@ function getUserscriptMenuStrings() {
     return {
       toggleHints: '显示/隐藏快捷键提示 (Toggle Shortcut Hints)',
       toggleNonFollowers: '正在关注：切换仅看未回关用户 (⇧F)',
+      toggleCompactPill: '切换精简浮动“已发帖”按钮 (Toggle Compact Pill)',
       setFollowKey: '修改关注快捷键 (Set Follow Shortcut Key)',
       promptKey: (curr) => `请输入关注快捷键（当前：${curr}，默认：F）：`
     };
@@ -350,6 +406,7 @@ function getUserscriptMenuStrings() {
     return {
       toggleHints: 'ショートカットヒント表示切替 (Toggle Shortcut Hints)',
       toggleNonFollowers: 'フォロー中：片思いのみ表示切替 (⇧F)',
+      toggleCompactPill: '「ポスト済」フローティングボタン最小化切替 (Toggle Compact Pill)',
       setFollowKey: 'フォローショートカット変更 (Set Follow Shortcut Key)',
       promptKey: (curr) => `フォロー用ショートカットキーを入力してください（現在: ${curr}、デフォルト: F）:`
     };
@@ -357,6 +414,7 @@ function getUserscriptMenuStrings() {
   return {
     toggleHints: 'Toggle Shortcut Hints',
     toggleNonFollowers: 'Following: Toggle Non-Followers Only (⇧F)',
+    toggleCompactPill: 'Toggle Compact Floating "Posted" Pill',
     setFollowKey: 'Set Follow Shortcut Key',
     promptKey: (curr) => `Enter Follow shortcut key (current: ${curr}, default: F):`
   };
@@ -376,6 +434,9 @@ function registerUserscriptMenuCommands() {
     GM_registerMenuCommand(strings.toggleNonFollowers, () => {
       setFilterNonFollowers(!filterNonFollowers, true);
     });
+    GM_registerMenuCommand(strings.toggleCompactPill, () => {
+      setCompactNewPostsPill(!compactNewPostsPill, true);
+    });
     GM_registerMenuCommand(strings.setFollowKey, () => {
       const currentLabel = formatShortcutLabel(shortcut);
       const input = typeof window !== 'undefined' && typeof window.prompt === 'function'
@@ -394,19 +455,41 @@ function registerUserscriptMenuCommands() {
   } catch (_) {}
 }
 
+function applyConfigUpdate(data = {}) {
+  if (!data || typeof data !== 'object') return;
+  if (data.shortcut && typeof data.shortcut === 'object') {
+    shortcut = { ...DEFAULT_SHORTCUT, ...data.shortcut };
+  }
+  if (typeof data.showUiHints === 'boolean') {
+    showUiHints = data.showUiHints;
+  }
+  if (typeof data.filterNonFollowers === 'boolean') {
+    filterNonFollowers = data.filterNonFollowers;
+  }
+  if (typeof data.compactNewPostsPill === 'boolean') {
+    compactNewPostsPill = data.compactNewPostsPill;
+  }
+  if (typeof data.compactPillDesign === 'string') {
+    compactPillDesign = normalizeCompactPillDesign(data.compactPillDesign);
+  }
+  if (typeof data.uiLang === 'string') {
+    uiLang = data.uiLang;
+  }
+  syncUiHints();
+  scheduleUiSync();
+}
+
 async function initShortcut() {
   try {
     const data = await chrome.storage.sync.get([
       'shortcut',
       'showUiHints',
       'filterNonFollowers',
+      'compactNewPostsPill',
+      'compactPillDesign',
       'uiLang'
     ]);
-    if (data.shortcut) shortcut = { ...DEFAULT_SHORTCUT, ...data.shortcut };
-    if (typeof data.showUiHints === 'boolean') showUiHints = data.showUiHints;
-    if (typeof data.filterNonFollowers === 'boolean') filterNonFollowers = data.filterNonFollowers;
-    if (typeof data.uiLang === 'string') uiLang = data.uiLang;
-    scheduleUiSync();
+    applyConfigUpdate(data);
   } catch (err) {
     console.error('Failed to load shortcut:', err);
   }
@@ -416,21 +499,26 @@ if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
   initShortcut();
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'sync') {
-      if (changes.shortcut?.newValue) {
-        shortcut = { ...DEFAULT_SHORTCUT, ...changes.shortcut.newValue };
-      }
-      if (typeof changes.showUiHints?.newValue === 'boolean') {
-        showUiHints = changes.showUiHints.newValue;
-      }
-      if (typeof changes.filterNonFollowers?.newValue === 'boolean') {
-        filterNonFollowers = changes.filterNonFollowers.newValue;
-      }
-      if (typeof changes.uiLang?.newValue === 'string') {
-        uiLang = changes.uiLang.newValue;
-      }
-      scheduleUiSync();
+      const patch = {};
+      if (changes.shortcut?.newValue) patch.shortcut = changes.shortcut.newValue;
+      if (typeof changes.showUiHints?.newValue === 'boolean') patch.showUiHints = changes.showUiHints.newValue;
+      if (typeof changes.filterNonFollowers?.newValue === 'boolean') patch.filterNonFollowers = changes.filterNonFollowers.newValue;
+      if (typeof changes.compactNewPostsPill?.newValue === 'boolean') patch.compactNewPostsPill = changes.compactNewPostsPill.newValue;
+      if (typeof changes.compactPillDesign?.newValue === 'string') patch.compactPillDesign = changes.compactPillDesign.newValue;
+      if (typeof changes.uiLang?.newValue === 'string') patch.uiLang = changes.uiLang.newValue;
+      applyConfigUpdate(patch);
     }
   });
+  if (chrome.runtime && chrome.runtime.onMessage && typeof chrome.runtime.onMessage.addListener === 'function') {
+    chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+      if (msg && msg.type === 'xfs-config-update') {
+        applyConfigUpdate(msg);
+        try {
+          sendResponse?.({ ok: true });
+        } catch (_) {}
+      }
+    });
+  }
 } else {
   loadFromLocalStorage();
   registerUserscriptMenuCommands();
@@ -469,6 +557,14 @@ function isFollowingPage(pathname = typeof location !== 'undefined' ? location.p
 
 function isFollowingFilterActive(pathname = typeof location !== 'undefined' ? location.pathname : '') {
   return Boolean(filterNonFollowers && isFollowingPage(pathname));
+}
+
+function isCompactPillPage(pathname = typeof location !== 'undefined' ? location.pathname : '') {
+  return COMPACT_PILL_PATH_RE.test(pathname);
+}
+
+function isCompactPillActive(pathname = typeof location !== 'undefined' ? location.pathname : '') {
+  return Boolean(compactNewPostsPill && isCompactPillPage(pathname));
 }
 
 const mutualCellCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
@@ -1476,6 +1572,284 @@ function syncFollowingFilter(
   return { total, nonFollowers, mutuals, active };
 }
 
+function ensureCompactPillStyles(root = document) {
+  if (!root || !root.head || typeof root.createElement !== 'function') return;
+  let style = root.getElementById?.('xfs-pill-styles');
+  if (!style) {
+    style = root.createElement('style');
+    style.id = 'xfs-pill-styles';
+    root.head.appendChild(style);
+  }
+  const css = `
+    /* Shared: hide the 3 overlapping profile avatars inside the floating "게시됨" pill */
+    [data-xfs-pill-avatars="true"],
+    html[data-xfs-compact-pill] button:has([data-testid="pillLabel"]) > div > div:not([data-testid="pillLabel"]),
+    html[data-xfs-compact-pill] [role="button"]:has([data-testid="pillLabel"]) > div > div:not([data-testid="pillLabel"]) {
+      display: none !important;
+    }
+
+    /* Design 1: Top-right translucent glass mini-capsule */
+    [data-xfs-pill-align="1"],
+    html[data-xfs-compact-pill="1"] div:has(> [role="status"] [data-testid="pillLabel"]) {
+      align-items: flex-end !important;
+      padding-right: 68px !important;
+    }
+    [data-xfs-pill-status="1"],
+    html[data-xfs-compact-pill="1"] [role="status"]:has([data-testid="pillLabel"]) {
+      margin-top: 6px !important;
+      margin-bottom: 0 !important;
+    }
+    [data-xfs-pill-btn="1"],
+    html[data-xfs-compact-pill="1"] button:has([data-testid="pillLabel"]),
+    html[data-xfs-compact-pill="1"] [role="button"]:has([data-testid="pillLabel"]) {
+      background-color: rgba(15, 20, 25, 0.72) !important;
+      backdrop-filter: blur(8px) !important;
+      -webkit-backdrop-filter: blur(8px) !important;
+      border: 1px solid rgba(29, 155, 240, 0.55) !important;
+      border-radius: 9999px !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35) !important;
+      padding: 2px 10px !important;
+      min-height: 22px !important;
+      height: 22px !important;
+    }
+    [data-xfs-pill-btn="1"]:hover,
+    html[data-xfs-compact-pill="1"] button:has([data-testid="pillLabel"]):hover,
+    html[data-xfs-compact-pill="1"] [role="button"]:has([data-testid="pillLabel"]):hover {
+      background-color: rgba(29, 155, 240, 0.88) !important;
+    }
+    [data-xfs-pill-btn="1"] svg,
+    html[data-xfs-compact-pill="1"] button:has([data-testid="pillLabel"]) svg,
+    html[data-xfs-compact-pill="1"] [role="button"]:has([data-testid="pillLabel"]) svg {
+      width: 12px !important;
+      height: 12px !important;
+      color: #1d9bf0 !important;
+      fill: currentColor !important;
+      margin-right: 3px !important;
+    }
+    [data-xfs-pill-btn="1"]:hover svg,
+    [data-xfs-pill-btn="1"]:hover [data-testid="pillLabel"]::after,
+    html[data-xfs-compact-pill="1"] button:has([data-testid="pillLabel"]):hover svg,
+    html[data-xfs-compact-pill="1"] button:has([data-testid="pillLabel"]):hover [data-testid="pillLabel"]::after {
+      color: #ffffff !important;
+    }
+    [data-xfs-pill-btn="1"] [data-testid="pillLabel"],
+    html[data-xfs-compact-pill="1"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"] {
+      font-size: 11.5px !important;
+      line-height: 15px !important;
+      color: #e7e9ea !important;
+    }
+    [data-xfs-pill-btn="1"] [data-testid="pillLabel"]::after,
+    html[data-xfs-compact-pill="1"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"]::after {
+      font-size: 11.5px !important;
+      margin-left: 4px !important;
+      color: #1d9bf0 !important;
+    }
+
+    /* Design 2: Ultra-slim top-docked tab flush beneath sticky tab bar */
+    [data-xfs-pill-align="2"],
+    html[data-xfs-compact-pill="2"] div:has(> [role="status"] [data-testid="pillLabel"]) {
+      align-items: center !important;
+      padding-right: 0 !important;
+    }
+    [data-xfs-pill-status="2"],
+    html[data-xfs-compact-pill="2"] [role="status"]:has([data-testid="pillLabel"]) {
+      margin-top: 0px !important;
+      margin-bottom: 0 !important;
+    }
+    [data-xfs-pill-btn="2"],
+    html[data-xfs-compact-pill="2"] button:has([data-testid="pillLabel"]),
+    html[data-xfs-compact-pill="2"] [role="button"]:has([data-testid="pillLabel"]) {
+      background-color: rgba(29, 155, 240, 0.18) !important;
+      backdrop-filter: blur(6px) !important;
+      -webkit-backdrop-filter: blur(6px) !important;
+      border: 1px solid rgba(29, 155, 240, 0.45) !important;
+      border-top: none !important;
+      border-radius: 0 0 10px 10px !important;
+      box-shadow: none !important;
+      padding: 1px 12px 2px !important;
+      min-height: 19px !important;
+      height: 19px !important;
+    }
+    [data-xfs-pill-btn="2"]:hover,
+    html[data-xfs-compact-pill="2"] button:has([data-testid="pillLabel"]):hover,
+    html[data-xfs-compact-pill="2"] [role="button"]:has([data-testid="pillLabel"]):hover {
+      background-color: rgba(29, 155, 240, 0.35) !important;
+    }
+    [data-xfs-pill-btn="2"] svg,
+    html[data-xfs-compact-pill="2"] button:has([data-testid="pillLabel"]) svg,
+    html[data-xfs-compact-pill="2"] [role="button"]:has([data-testid="pillLabel"]) svg {
+      width: 11px !important;
+      height: 11px !important;
+      color: #1d9bf0 !important;
+      fill: currentColor !important;
+      margin-right: 3px !important;
+    }
+    [data-xfs-pill-btn="2"] [data-testid="pillLabel"],
+    html[data-xfs-compact-pill="2"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"] {
+      font-size: 11px !important;
+      line-height: 14px !important;
+      color: #1d9bf0 !important;
+      font-weight: 600 !important;
+    }
+    [data-xfs-pill-btn="2"] [data-testid="pillLabel"]::after,
+    html[data-xfs-compact-pill="2"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"]::after {
+      font-size: 11px !important;
+      margin-left: 3px !important;
+      color: #1d9bf0 !important;
+    }
+
+    /* Design 3: Top-right micro icon badge ("↑ .") expanding label on hover */
+    [data-xfs-pill-align="3"],
+    html[data-xfs-compact-pill="3"] div:has(> [role="status"] [data-testid="pillLabel"]) {
+      align-items: flex-end !important;
+      padding-right: 68px !important;
+    }
+    [data-xfs-pill-status="3"],
+    html[data-xfs-compact-pill="3"] [role="status"]:has([data-testid="pillLabel"]) {
+      margin-top: 6px !important;
+      margin-bottom: 0 !important;
+    }
+    [data-xfs-pill-btn="3"],
+    html[data-xfs-compact-pill="3"] button:has([data-testid="pillLabel"]),
+    html[data-xfs-compact-pill="3"] [role="button"]:has([data-testid="pillLabel"]) {
+      background-color: rgba(29, 155, 240, 0.20) !important;
+      backdrop-filter: blur(8px) !important;
+      -webkit-backdrop-filter: blur(8px) !important;
+      border: 1px solid rgba(29, 155, 240, 0.55) !important;
+      border-radius: 9999px !important;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25) !important;
+      padding: 2px 8px !important;
+      min-height: 22px !important;
+      height: 22px !important;
+      min-width: 0 !important;
+    }
+    [data-xfs-pill-btn="3"] svg,
+    html[data-xfs-compact-pill="3"] button:has([data-testid="pillLabel"]) svg,
+    html[data-xfs-compact-pill="3"] [role="button"]:has([data-testid="pillLabel"]) svg {
+      width: 12px !important;
+      height: 12px !important;
+      color: #1d9bf0 !important;
+      fill: currentColor !important;
+      margin: 0 !important;
+    }
+    [data-xfs-pill-btn="3"]:hover svg,
+    html[data-xfs-compact-pill="3"] button:has([data-testid="pillLabel"]):hover svg,
+    html[data-xfs-compact-pill="3"] [role="button"]:has([data-testid="pillLabel"]):hover svg {
+      margin-right: 3px !important;
+    }
+    [data-xfs-pill-btn="3"] [data-testid="pillLabel"],
+    html[data-xfs-compact-pill="3"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"] {
+      font-size: 11.5px !important;
+      line-height: 15px !important;
+      color: #1d9bf0 !important;
+    }
+    [data-xfs-pill-btn="3"]:not(:hover) [data-testid="pillLabel"] > span,
+    html[data-xfs-compact-pill="3"] button:has([data-testid="pillLabel"]):not(:hover) [data-testid="pillLabel"] > span,
+    html[data-xfs-compact-pill="3"] [role="button"]:has([data-testid="pillLabel"]):not(:hover) [data-testid="pillLabel"] > span {
+      display: none !important;
+    }
+    [data-xfs-pill-btn="3"] [data-testid="pillLabel"]::after,
+    html[data-xfs-compact-pill="3"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"]::after {
+      content: ".";
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 11.5px !important;
+      font-weight: 700 !important;
+      margin-left: 3px !important;
+      color: #1d9bf0 !important;
+      pointer-events: none;
+      user-select: none;
+    }
+  `;
+  if (style.textContent !== css) {
+    style.textContent = css;
+  }
+}
+
+function formatCompactPillLabel(lang = detectUiLang()) {
+  if (lang === 'ko') return '게시됨';
+  if (lang === 'zh') return '已发帖';
+  if (lang === 'ja') return 'ポスト済';
+  return 'Posted';
+}
+
+function clearCompactPillNodeAttributes(root) {
+  for (const el of root.querySelectorAll?.(
+    '[data-xfs-pill-align], [data-xfs-pill-status], [data-xfs-pill-btn], [data-xfs-pill-avatars]'
+  ) || []) {
+    el.removeAttribute?.('data-xfs-pill-align');
+    el.removeAttribute?.('data-xfs-pill-status');
+    el.removeAttribute?.('data-xfs-pill-btn');
+    el.removeAttribute?.('data-xfs-pill-avatars');
+  }
+}
+
+function syncCompactPill(
+  root = document,
+  pathname = typeof location !== 'undefined' ? location.pathname : ''
+) {
+  if (!root || !root.documentElement) {
+    return { active: false, design: compactPillDesign };
+  }
+  const active = isCompactPillActive(pathname);
+  const pills = Array.from(root.querySelectorAll?.('[data-testid="pillLabel"]') || []);
+  if (!active) {
+    root.getElementById?.('xfs-pill-styles')?.remove?.();
+    root.documentElement.removeAttribute?.('data-xfs-compact-pill');
+    clearCompactPillNodeAttributes(root);
+    for (const pill of pills) {
+      const orig = pill.getAttribute?.('data-xfs-orig-text');
+      if (typeof orig === 'string') {
+        const span = pill.querySelector?.('span') || pill;
+        if (span.textContent !== orig) {
+          span.textContent = orig;
+        }
+        pill.removeAttribute?.('data-xfs-orig-text');
+      }
+    }
+    return { active: false, design: compactPillDesign };
+  }
+  ensureCompactPillStyles(root);
+  const design = normalizeCompactPillDesign(compactPillDesign);
+  if (root.documentElement.getAttribute?.('data-xfs-compact-pill') !== design) {
+    root.documentElement.setAttribute?.('data-xfs-compact-pill', design);
+  }
+  const localized = formatCompactPillLabel(detectUiLang(root));
+  const allLocalizedValues = new Set(['게시됨', 'Posted', '已发帖', 'ポスト済']);
+  for (const pill of pills) {
+    const btn = pill.closest?.('button, [role="button"]');
+    const statusDiv = pill.closest?.('[role="status"]') || btn?.parentElement;
+    const alignWrap = statusDiv?.parentElement;
+    if (btn && btn.getAttribute?.('data-xfs-pill-btn') !== design) {
+      btn.setAttribute?.('data-xfs-pill-btn', design);
+    }
+    if (statusDiv && statusDiv.getAttribute?.('data-xfs-pill-status') !== design) {
+      statusDiv.setAttribute?.('data-xfs-pill-status', design);
+    }
+    if (alignWrap && alignWrap.getAttribute?.('data-xfs-pill-align') !== design) {
+      alignWrap.setAttribute?.('data-xfs-pill-align', design);
+    }
+    const innerRow = pill.parentElement;
+    if (innerRow?.children) {
+      for (const sibling of Array.from(innerRow.children)) {
+        if (sibling !== pill && sibling.tagName?.toLowerCase?.() !== 'svg') {
+          if (sibling.getAttribute?.('data-xfs-pill-avatars') !== 'true') {
+            sibling.setAttribute?.('data-xfs-pill-avatars', 'true');
+          }
+        }
+      }
+    }
+    const span = pill.querySelector?.('span') || pill;
+    const curr = span.textContent || '';
+    if (!pill.getAttribute?.('data-xfs-orig-text') || (curr !== localized && !allLocalizedValues.has(curr))) {
+      pill.setAttribute?.('data-xfs-orig-text', curr);
+    }
+    if (curr !== localized) {
+      span.textContent = localized;
+    }
+  }
+  return { active: true, design };
+}
+
 function syncUiHints() {
   if (typeof document === 'undefined' || !document.documentElement) return;
   document.getElementById('xfs-hud')?.remove();
@@ -1483,6 +1857,7 @@ function syncUiHints() {
     badge.remove();
   }
   syncFollowingFilter(document);
+  syncCompactPill(document);
   if (!showUiHints) {
     for (const prev of document.querySelectorAll?.('[data-xfs-target="true"]') || []) {
       prev.removeAttribute?.('data-xfs-target');
@@ -1963,6 +2338,15 @@ if (typeof module !== 'undefined') {
     setShowUiHints,
     getFilterNonFollowers,
     setFilterNonFollowers,
+    isCompactPillPage,
+    isCompactPillActive,
+    getCompactNewPostsPill,
+    setCompactNewPostsPill,
+    getCompactPillDesign,
+    setCompactPillDesign,
+    formatCompactPillLabel,
+    applyConfigUpdate,
+    syncCompactPill,
     syncFollowingFilter,
     syncUiHints
   };

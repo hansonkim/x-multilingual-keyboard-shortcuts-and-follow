@@ -85,6 +85,27 @@
       cursor: pointer;
       margin: 0;
     }
+    .sub-select-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 6px;
+      padding: 6px 10px;
+      border: 1px dashed rgba(128, 128, 128, 0.25);
+      border-radius: 8px;
+      font-size: 12px;
+      gap: 8px;
+    }
+    #compact-pill-design {
+      padding: 3px 6px;
+      font-size: 11px;
+      border-radius: 6px;
+      border: 1px solid rgba(128, 128, 128, 0.35);
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
     .shortcut-list {
       display: grid;
       grid-template-columns: auto 1fr;
@@ -129,6 +150,18 @@
     <span data-i18n="toggleNonFollowers">팔로잉 목록에서 맞팔 안 한 계정만 보기 (⇧F)</span>
     <input id="filter-non-followers" type="checkbox">
   </label>
+  <label class="toggle-row" for="compact-new-posts-pill">
+    <span data-i18n="toggleCompactPill">"게시됨" 플로팅 버튼 최소화 (컨텐츠 가림 방지)</span>
+    <input id="compact-new-posts-pill" type="checkbox" checked>
+  </label>
+  <div class="sub-select-row" id="compact-pill-design-row">
+    <span data-i18n="compactPillDesignLabel">플로팅 버튼 디자인</span>
+    <select id="compact-pill-design" aria-label="Compact Pill Design">
+      <option value="1" data-i18n="compactPillDesign1">1. 우측 상단 글래스 캡슐</option>
+      <option value="2" data-i18n="compactPillDesign2">2. 상단 탭바 밀착 슬림 바</option>
+      <option value="3" data-i18n="compactPillDesign3" selected>3. 우측 상단 초소형 아이콘 (↑ .)</option>
+    </select>
+  </div>
 
   <h2 data-i18n="extSectionTitle">확장 프로그램 추가 단축키</h2>
   <div class="shortcut-list">

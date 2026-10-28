@@ -33,6 +33,8 @@ Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**,
    - Displays subtle inline shortcut labels matching each button or menu item's native text color. On follower/following lists, the `F` badge appears exclusively on the user selected via `J` / `K`. Toggle hints on or off anytime from the extension popup.
 6. **Customizable Follow Key & Smart Input Detection**
    - Change the Follow shortcut to any key or modifier combination in the popup. Shortcuts are automatically ignored when typing in text fields, replies, search bars, or direct messages.
+7. **Compact Floating "Posted" Pill (Default: On)**
+   - Minimizes the large blue floating "Posted / Show new posts" banner on `/home` and `/notifications*` into a tiny translucent top-right micro icon (`↑ .`, expanding on hover) so it never blocks tweet content. Toggleable On/Off from the extension popup.
 
 ---
 

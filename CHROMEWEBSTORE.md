@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — X Multilingual Keyboard Shortcuts & Follow
 
-> Last Updated: 2026-10-25
+> Last Updated: 2026-10-29
 
 ## Store Listing
 
@@ -29,6 +29,8 @@ Key Features:
    - Displays subtle inline shortcut labels matching each button or menu item's native text color. On follower/following lists, the F hint appears exclusively on the user selected via J / K. You can toggle these hints on or off anytime from the extension popup.
 6. Customizable Follow Shortcut & Smart Input Detection:
    - Customize the Follow shortcut to any key or modifier combination in the popup. Key presses are automatically ignored while typing inside text fields, replies, search bars, or direct messages.
+7. Compact Floating "Posted" Pill (Default: On, 3 Selectable Designs):
+   - Minimizes the floating "Posted" pill on `/home` and `/notifications*` so it never blocks post content, with live On/Off toggle, 3 selectable designs (1. Top-right glass capsule, 2. Top-docked slim bar, 3. Top-right micro icon `↑ .`), and 4-language label localization.
 
 Privacy & Permissions:
 This extension only runs on x.com and twitter.com and uses Chrome storage solely to save your shortcut preferences. No personal data, browsing history, or account information is collected or transmitted.
@@ -94,7 +96,8 @@ https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/issues
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.0.9 | 2026-10-25 | Add Non-Follower Filter (`Shift+F` / sticky toggle bar) on `/following` to show only accounts that do not follow back, skip hidden mutuals on `J`/`K`, and align selected rows below the sticky header. | Submitted |
+| 1.0.10 | 2026-10-29 | Add Compact Floating "Posted" Pill on `/home` and `/notifications*` (default: On) with 3 selectable designs (`1. Top-right glass capsule`, `2. Top-docked slim bar`, `3. Top-right micro icon ↑ .`), instant live popup-to-tab updates, and 4-language label localization. | Submitted |
+| 1.0.9 | 2026-10-25 | Add Non-Follower Filter (`Shift+F` / sticky toggle bar) on `/following` to show only accounts that do not follow back, skip hidden mutuals on `J`/`K`, and align selected rows below the sticky header. | Published |
 | 1.0.8 | 2026-10-16 | Add 4-language UI support (Korean, English, Chinese, Japanese) with auto-detection and language selector in the extension popup panel, plus Safari Userscript support. | Published |
 | 1.0.7 | 2026-10-15 | Rename extension to "X Multilingual Keyboard Shortcuts & Follow" to reflect full multilingual shortcut and follow capabilities. | Published |
 | 1.0.6 | 2026-10-15 | Support all X.com (?) shortcuts across multilingual IMEs, continuous J/K hold repeat, status page follow, selected-row-only F hint on follow lists, g v/w/o follow tab shortcuts from any page, and show/hide UI hint toggle. | Superseded |

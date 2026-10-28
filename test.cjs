@@ -20,6 +20,15 @@ const {
   setShowUiHints,
   getFilterNonFollowers,
   setFilterNonFollowers,
+  isCompactPillPage,
+  isCompactPillActive,
+  getCompactNewPostsPill,
+  setCompactNewPostsPill,
+  getCompactPillDesign,
+  setCompactPillDesign,
+  formatCompactPillLabel,
+  applyConfigUpdate,
+  syncCompactPill,
   syncFollowingFilter,
   syncUiHints
 } = require('./content.js');
@@ -942,6 +951,185 @@ assert.equal(fUser2.cell.getAttribute('data-xfs-hidden'), null);
 assert.equal(filterSection.style.marginTop, '');
 
 setFilterNonFollowers(false);
+
+// 15. Compact floating "게시됨" pill on /home and /notifications* (default On, toggle On/Off, 3 designs)
+assert.equal(getCompactNewPostsPill(), true, 'Compact floating pill must default to On (true)');
+assert.equal(getCompactPillDesign(), '3', 'Compact floating pill design must default to "3"');
+assert.equal(isCompactPillPage('/home'), true);
+assert.equal(isCompactPillPage('/home/'), true);
+assert.equal(isCompactPillPage('/notifications'), true);
+assert.equal(isCompactPillPage('/notifications/'), true);
+assert.equal(isCompactPillPage('/notifications/verified'), true);
+assert.equal(isCompactPillPage('/notifications/mentions'), true);
+assert.equal(isCompactPillPage('/explore'), false);
+assert.equal(isCompactPillPage('/Hanssony_'), false);
+assert.equal(isCompactPillPage('/Hanssony_/following'), false);
+
+let pillStyleEl = null;
+const pillDocAttrs = new Map();
+const pillElemAttrs = new Map();
+const pillBtnAttrs = new Map();
+const pillStatusAttrs = new Map();
+const pillAlignAttrs = new Map();
+const pillAvatarAttrs = new Map();
+const pillSpan = { textContent: '게시됨' };
+const pillAvatarWrap = {
+  tagName: 'DIV',
+  getAttribute: (k) => pillAvatarAttrs.get(k) ?? null,
+  setAttribute: (k, v) => pillAvatarAttrs.set(k, String(v)),
+  removeAttribute: (k) => pillAvatarAttrs.delete(k)
+};
+const pillAlignWrap = {
+  getAttribute: (k) => pillAlignAttrs.get(k) ?? null,
+  setAttribute: (k, v) => pillAlignAttrs.set(k, String(v)),
+  removeAttribute: (k) => pillAlignAttrs.delete(k)
+};
+const pillStatusDiv = {
+  parentElement: pillAlignWrap,
+  getAttribute: (k) => pillStatusAttrs.get(k) ?? null,
+  setAttribute: (k, v) => pillStatusAttrs.set(k, String(v)),
+  removeAttribute: (k) => pillStatusAttrs.delete(k)
+};
+const pillBtn = {
+  parentElement: pillStatusDiv,
+  getAttribute: (k) => pillBtnAttrs.get(k) ?? null,
+  setAttribute: (k, v) => pillBtnAttrs.set(k, String(v)),
+  removeAttribute: (k) => pillBtnAttrs.delete(k)
+};
+const pillElem = {
+  parentElement: { children: [{ tagName: 'svg' }, pillAvatarWrap] },
+  getAttribute: (k) => pillElemAttrs.get(k) ?? null,
+  setAttribute: (k, v) => pillElemAttrs.set(k, String(v)),
+  removeAttribute: (k) => pillElemAttrs.delete(k),
+  querySelector: (sel) => (sel === 'span' ? pillSpan : null),
+  closest: (sel) => {
+    if (sel.includes('button')) return pillBtn;
+    if (sel.includes('[role="status"]')) return pillStatusDiv;
+    return null;
+  }
+};
+pillElem.parentElement.children.push(pillElem);
+const pillDoc = {
+  documentElement: {
+    lang: 'ko',
+    getAttribute: (k) => pillDocAttrs.get(k) ?? null,
+    setAttribute: (k, v) => pillDocAttrs.set(k, String(v)),
+    removeAttribute: (k) => pillDocAttrs.delete(k)
+  },
+  head: {
+    appendChild(el) {
+      if (el.id === 'xfs-pill-styles') pillStyleEl = el;
+    }
+  },
+  getElementById(id) {
+    if (id === 'xfs-pill-styles') return pillStyleEl;
+    return null;
+  },
+  querySelectorAll(sel) {
+    if (sel === '[data-testid="pillLabel"]') return [pillElem];
+    if (sel.includes('data-xfs-pill-')) {
+      return [pillAlignWrap, pillStatusDiv, pillBtn, pillAvatarWrap];
+    }
+    return [];
+  },
+  createElement(tag) {
+    const el = {
+      tagName: tag.toUpperCase(),
+      id: '',
+      textContent: '',
+      remove() {
+        if (el === pillStyleEl) pillStyleEl = null;
+      }
+    };
+    return el;
+  }
+};
+
+// Verify formatCompactPillLabel localization across ko, en, zh, ja
+assert.equal(formatCompactPillLabel('ko'), '게시됨');
+assert.equal(formatCompactPillLabel('en'), 'Posted');
+assert.equal(formatCompactPillLabel('zh'), '已发帖');
+assert.equal(formatCompactPillLabel('ja'), 'ポスト済');
+
+// Default ON (Design 3) on /home and /notifications* and dynamic pillLabel localization
+assert.deepEqual(syncCompactPill(pillDoc, '/home'), { active: true, design: '3' });
+assert.equal(pillDoc.documentElement.getAttribute('data-xfs-compact-pill'), '3');
+assert.ok(pillStyleEl && pillStyleEl.textContent.includes('data-xfs-compact-pill="3"'));
+assert.equal(pillSpan.textContent, '게시됨');
+
+pillDoc.documentElement.lang = 'en';
+syncCompactPill(pillDoc, '/home');
+assert.equal(pillSpan.textContent, 'Posted');
+
+pillDoc.documentElement.lang = 'ja';
+syncCompactPill(pillDoc, '/home');
+assert.equal(pillSpan.textContent, 'ポスト済');
+
+pillDoc.documentElement.lang = 'zh';
+syncCompactPill(pillDoc, '/home');
+assert.equal(pillSpan.textContent, '已发帖');
+
+pillDoc.documentElement.lang = 'ko';
+syncCompactPill(pillDoc, '/home');
+assert.equal(pillSpan.textContent, '게시됨');
+
+// Switch across designs ('1', '2', '3') on /notifications/mentions
+setCompactPillDesign('2');
+assert.deepEqual(syncCompactPill(pillDoc, '/notifications/mentions'), { active: true, design: '2' });
+assert.equal(pillDoc.documentElement.getAttribute('data-xfs-compact-pill'), '2');
+assert.equal(pillBtn.getAttribute('data-xfs-pill-btn'), '2');
+assert.equal(pillStatusDiv.getAttribute('data-xfs-pill-status'), '2');
+assert.equal(pillAlignWrap.getAttribute('data-xfs-pill-align'), '2');
+assert.equal(pillAvatarWrap.getAttribute('data-xfs-pill-avatars'), 'true');
+
+setCompactPillDesign('3');
+assert.deepEqual(syncCompactPill(pillDoc, '/notifications'), { active: true, design: '3' });
+assert.equal(pillDoc.documentElement.getAttribute('data-xfs-compact-pill'), '3');
+assert.equal(pillBtn.getAttribute('data-xfs-pill-btn'), '3');
+
+// Immediate live config update via applyConfigUpdate (from popup sendMessage / storage.onChanged)
+applyConfigUpdate({ compactNewPostsPill: false, compactPillDesign: '1' });
+assert.equal(getCompactNewPostsPill(), false);
+assert.equal(getCompactPillDesign(), '1');
+assert.deepEqual(syncCompactPill(pillDoc, '/home'), { active: false, design: '1' });
+assert.equal(pillBtn.getAttribute('data-xfs-pill-btn'), null);
+assert.equal(pillStatusDiv.getAttribute('data-xfs-pill-status'), null);
+assert.equal(pillAlignWrap.getAttribute('data-xfs-pill-align'), null);
+assert.equal(pillAvatarWrap.getAttribute('data-xfs-pill-avatars'), null);
+
+applyConfigUpdate({ compactNewPostsPill: true, compactPillDesign: '3' });
+assert.equal(getCompactNewPostsPill(), true);
+assert.equal(getCompactPillDesign(), '3');
+assert.deepEqual(syncCompactPill(pillDoc, '/home'), { active: true, design: '3' });
+assert.equal(pillBtn.getAttribute('data-xfs-pill-btn'), '3');
+
+// Inactive on non-pill pages (e.g. /explore)
+assert.deepEqual(syncCompactPill(pillDoc, '/explore'), { active: false, design: '3' });
+assert.equal(pillDoc.documentElement.getAttribute('data-xfs-compact-pill'), null);
+assert.equal(pillStyleEl, null);
+
+// Toggle OFF disables compact pill even on /home
+setCompactNewPostsPill(false);
+assert.equal(isCompactPillActive('/home'), false);
+assert.deepEqual(syncCompactPill(pillDoc, '/home'), { active: false, design: '3' });
+assert.equal(pillDoc.documentElement.getAttribute('data-xfs-compact-pill'), null);
+
+// Restore default ON & design '3'
+setCompactPillDesign('3');
+setCompactNewPostsPill(true);
+assert.equal(isCompactPillActive('/home'), true);
+assert.equal(isCompactPillActive('/notifications/verified'), true);
+
+// Verify popup.html option order for #compact-pill-design is [1, 2, 3] with 3 selected by default
+const fs = require('node:fs');
+const popupHtml = fs.readFileSync(require('node:path').join(__dirname, 'popup.html'), 'utf8');
+const designSelectMatch = popupHtml.match(/<select id="compact-pill-design"[^>]*>([\s\S]*?)<\/select>/);
+assert.ok(designSelectMatch, 'popup.html must contain #compact-pill-design select');
+const optionValues = Array.from(designSelectMatch[1].matchAll(/<option value="(\d+)"/g)).map((m) => m[1]);
+assert.deepEqual(optionValues, ['1', '2', '3'], 'Compact pill design options must be ordered [1, 2, 3]');
+assert.match(designSelectMatch[1], /<option value="1"[^>]*>1\. 우측 상단 글래스 캡슐<\/option>/);
+assert.match(designSelectMatch[1], /<option value="2"[^>]*>2\. 상단 탭바 밀착 슬림 바<\/option>/);
+assert.match(designSelectMatch[1], /<option value="3"[^>]*selected>3\. 우측 상단 초소형 아이콘 \(↑ \.\)<\/option>/);
 
 // Manifest description length gate (Chrome Web Store enforces <= 132 characters)
 const manifest = require('./manifest.json');
