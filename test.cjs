@@ -972,7 +972,7 @@ const pillBtnAttrs = new Map();
 const pillStatusAttrs = new Map();
 const pillAlignAttrs = new Map();
 const pillAvatarAttrs = new Map();
-const pillSpan = { textContent: '게시됨' };
+const pillSpan = { textContent: '새 게시물 보기' };
 const pillAvatarWrap = {
   tagName: 'DIV',
   getAttribute: (k) => pillAvatarAttrs.get(k) ?? null,
@@ -1028,7 +1028,7 @@ const pillDoc = {
   querySelectorAll(sel) {
     if (sel === '[data-testid="pillLabel"]') return [pillElem];
     if (sel.includes('data-xfs-pill-')) {
-      return [pillAlignWrap, pillStatusDiv, pillBtn, pillAvatarWrap];
+      return [pillAlignWrap, pillStatusDiv, pillBtn, pillAvatarWrap, pillElem];
     }
     return [];
   },
@@ -1055,23 +1055,25 @@ assert.equal(formatCompactPillLabel('ja'), 'ポスト済');
 assert.deepEqual(syncCompactPill(pillDoc, '/home'), { active: true, design: '3' });
 assert.equal(pillDoc.documentElement.getAttribute('data-xfs-compact-pill'), '3');
 assert.ok(pillStyleEl && pillStyleEl.textContent.includes('data-xfs-compact-pill="3"'));
-assert.equal(pillSpan.textContent, '게시됨');
+assert.ok(pillStyleEl.textContent.includes('content: attr(data-xfs-label)'));
+assert.equal(pillElem.getAttribute('data-xfs-label'), '게시됨');
+assert.equal(pillSpan.textContent, '새 게시물 보기', 'React-owned pill text must never be mutated');
 
 pillDoc.documentElement.lang = 'en';
 syncCompactPill(pillDoc, '/home');
-assert.equal(pillSpan.textContent, 'Posted');
+assert.equal(pillElem.getAttribute('data-xfs-label'), 'Posted');
 
 pillDoc.documentElement.lang = 'ja';
 syncCompactPill(pillDoc, '/home');
-assert.equal(pillSpan.textContent, 'ポスト済');
+assert.equal(pillElem.getAttribute('data-xfs-label'), 'ポスト済');
 
 pillDoc.documentElement.lang = 'zh';
 syncCompactPill(pillDoc, '/home');
-assert.equal(pillSpan.textContent, '已发帖');
+assert.equal(pillElem.getAttribute('data-xfs-label'), '已发帖');
 
 pillDoc.documentElement.lang = 'ko';
 syncCompactPill(pillDoc, '/home');
-assert.equal(pillSpan.textContent, '게시됨');
+assert.equal(pillElem.getAttribute('data-xfs-label'), '게시됨');
 
 // Switch across designs ('1', '2', '3') on /notifications/mentions
 setCompactPillDesign('2');
@@ -1096,6 +1098,8 @@ assert.equal(pillBtn.getAttribute('data-xfs-pill-btn'), null);
 assert.equal(pillStatusDiv.getAttribute('data-xfs-pill-status'), null);
 assert.equal(pillAlignWrap.getAttribute('data-xfs-pill-align'), null);
 assert.equal(pillAvatarWrap.getAttribute('data-xfs-pill-avatars'), null);
+assert.equal(pillElem.getAttribute('data-xfs-label'), null);
+assert.equal(pillSpan.textContent, '새 게시물 보기');
 
 applyConfigUpdate({ compactNewPostsPill: true, compactPillDesign: '3' });
 assert.equal(getCompactNewPostsPill(), true);

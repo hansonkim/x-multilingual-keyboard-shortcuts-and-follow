@@ -1605,6 +1605,13 @@ function ensureCompactPillStyles(root = document) {
     html[data-xfs-compact-pill] [role="button"]:has([data-testid="pillLabel"]) > div > div:not([data-testid="pillLabel"]) {
       display: none !important;
     }
+    /* Shared: render the localized label via CSS so React-owned text nodes stay untouched */
+    [data-testid="pillLabel"][data-xfs-label] > span {
+      display: none !important;
+    }
+    [data-testid="pillLabel"][data-xfs-label]::before {
+      content: attr(data-xfs-label);
+    }
 
     /* Design 1: Top-right translucent glass mini-capsule */
     [data-xfs-pill-align="1"],
@@ -1761,9 +1768,9 @@ function ensureCompactPillStyles(root = document) {
       line-height: 15px !important;
       color: #1d9bf0 !important;
     }
-    [data-xfs-pill-btn="3"]:not(:hover) [data-testid="pillLabel"] > span,
-    html[data-xfs-compact-pill="3"] button:has([data-testid="pillLabel"]):not(:hover) [data-testid="pillLabel"] > span,
-    html[data-xfs-compact-pill="3"] [role="button"]:has([data-testid="pillLabel"]):not(:hover) [data-testid="pillLabel"] > span {
+    [data-xfs-pill-btn="3"]:not(:hover) [data-testid="pillLabel"]::before,
+    html[data-xfs-compact-pill="3"] button:has([data-testid="pillLabel"]):not(:hover) [data-testid="pillLabel"]::before,
+    html[data-xfs-compact-pill="3"] [role="button"]:has([data-testid="pillLabel"]):not(:hover) [data-testid="pillLabel"]::before {
       display: none !important;
     }
     [data-xfs-pill-btn="3"] [data-testid="pillLabel"]::after,
@@ -1792,12 +1799,13 @@ function formatCompactPillLabel(lang = detectUiLang()) {
 
 function clearCompactPillNodeAttributes(root) {
   for (const el of root.querySelectorAll?.(
-    '[data-xfs-pill-align], [data-xfs-pill-status], [data-xfs-pill-btn], [data-xfs-pill-avatars]'
+    '[data-xfs-pill-align], [data-xfs-pill-status], [data-xfs-pill-btn], [data-xfs-pill-avatars], [data-xfs-label]'
   ) || []) {
     el.removeAttribute?.('data-xfs-pill-align');
     el.removeAttribute?.('data-xfs-pill-status');
     el.removeAttribute?.('data-xfs-pill-btn');
     el.removeAttribute?.('data-xfs-pill-avatars');
+    el.removeAttribute?.('data-xfs-label');
   }
 }
 
@@ -1809,30 +1817,19 @@ function syncCompactPill(
     return { active: false, design: compactPillDesign };
   }
   const active = isCompactPillActive(pathname);
-  const pills = Array.from(root.querySelectorAll?.('[data-testid="pillLabel"]') || []);
   if (!active) {
     root.getElementById?.('xfs-pill-styles')?.remove?.();
     root.documentElement.removeAttribute?.('data-xfs-compact-pill');
     clearCompactPillNodeAttributes(root);
-    for (const pill of pills) {
-      const orig = pill.getAttribute?.('data-xfs-orig-text');
-      if (typeof orig === 'string') {
-        const span = pill.querySelector?.('span') || pill;
-        if (span.textContent !== orig) {
-          span.textContent = orig;
-        }
-        pill.removeAttribute?.('data-xfs-orig-text');
-      }
-    }
     return { active: false, design: compactPillDesign };
   }
+  const pills = Array.from(root.querySelectorAll?.('[data-testid="pillLabel"]') || []);
   ensureCompactPillStyles(root);
   const design = normalizeCompactPillDesign(compactPillDesign);
   if (root.documentElement.getAttribute?.('data-xfs-compact-pill') !== design) {
     root.documentElement.setAttribute?.('data-xfs-compact-pill', design);
   }
   const localized = formatCompactPillLabel(detectUiLang(root));
-  const allLocalizedValues = new Set(['게시됨', 'Posted', '已发帖', 'ポスト済']);
   for (const pill of pills) {
     const btn = pill.closest?.('button, [role="button"]');
     const statusDiv = pill.closest?.('[role="status"]') || btn?.parentElement;
@@ -1856,13 +1853,8 @@ function syncCompactPill(
         }
       }
     }
-    const span = pill.querySelector?.('span') || pill;
-    const curr = span.textContent || '';
-    if (!pill.getAttribute?.('data-xfs-orig-text') || (curr !== localized && !allLocalizedValues.has(curr))) {
-      pill.setAttribute?.('data-xfs-orig-text', curr);
-    }
-    if (curr !== localized) {
-      span.textContent = localized;
+    if (pill.getAttribute?.('data-xfs-label') !== localized) {
+      pill.setAttribute?.('data-xfs-label', localized);
     }
   }
   return { active: true, design };
