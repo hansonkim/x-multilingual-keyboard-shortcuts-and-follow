@@ -2,7 +2,7 @@
 
 **语言 (Languages)**: [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.9-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.11-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
 
 无需切换到英文输入法，即可在**中文、韩语、日语、俄语、阿拉伯语及全角输入法（IME）**下直接使用 **X.com (Twitter) 的所有原生快捷键（`?`）**，并新增**关注/取消关注（`F`）**、**未回关用户筛选（`Shift+F`）**、**确认弹窗（`Y`/`N`）**以及**关注者/正在关注标签页跳转（`G` `V` / `G` `W` / `G` `O`）**快捷键。
 
@@ -35,6 +35,8 @@
    - 支持在扩展弹窗中将关注快捷键修改为任意单键或组合键。在发帖框、回复框、搜索栏或私信输入框打字时会自动忽略快捷键。
 7. **浮动“已发帖”按钮精简（默认：开启）**
    - 将 `/home` 和 `/notifications*` 页面中遮挡正文的蓝色浮动新帖按钮缩小为右上角半透明迷你图标（`↑ .`，鼠标悬停时展开文字），可在扩展弹窗中随时开启或关闭。
+8. **主页标签数字快捷键（`1`–`9`）**
+   - 在 `/home` 按 `1`–`9`（或先按 `G` 再按 `1`–`9` / `0`）即可跳转到对应的顶部标签（为你推荐、正在关注、列表等）。每个标签名称旁会显示数字提示。
 
 ---
 

@@ -2,7 +2,7 @@
 
 **언어 (Languages)**: [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.9-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.11-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
 
 한/영 키를 전환하지 않고 **한국어(한글), 일본어, 중국어 등 모든 다국어 입력 상태(IME)**에서 **X.com(트위터)의 전체 기본 단축키(`?`)**와 **팔로우/언팔로우(`F`)**, **맞팔 안 한 계정 필터(`Shift+F`)**, **확인 모달(`Y`/`N`)**, **팔로워/팔로잉 탭 이동(`G` `V` / `G` `W` / `G` `O`)** 단축키를 바로 사용할 수 있는 Chrome 확장 프로그램입니다.
 
@@ -35,6 +35,8 @@
    - 팝업에서 팔로우 단축키를 원하는 단일 키 또는 조합키로 변경할 수 있으며, 게시물 작성창·답글·검색창·DM 입력 중에는 단축키가 동작하지 않습니다.
 7. **플로팅 "게시됨" 버튼 최소화 (컨텐츠 가림 방지, 기본값: On)**
    - `/home` 및 `/notifications*` 화면에서 본문을 가리는 파란색 플로팅 "게시됨" 버튼을 우측 상단 초소형 반투명 아이콘(`↑ .`, 마우스 호버 시 텍스트 펼침)으로 축소하여 게시물 가림을 방지합니다. 확장 프로그램 팝업에서 On/Off 할 수 있습니다.
+8. **홈 탭 숫자 이동 (`1`–`9`)**
+   - `/home`에서 `1`–`9`(또는 `G` 다음 `1`–`9` / `0`)를 눌러 상단 탭(추천, 팔로잉, 사용자 리스트 등)으로 바로 이동합니다. 각 탭 이름 옆에 숫자 힌트가 표시됩니다.
 
 ---
 

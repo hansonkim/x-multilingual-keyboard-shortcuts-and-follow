@@ -2,7 +2,7 @@
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.9-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.11-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
 
 Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**, **Non-Follower Filter (`Shift + F`)**, **Confirmation Dialog (`Y` / `N`)**, and **Follower / Following Tab Navigation (`G` `V` / `G` `W` / `G` `O`)** seamlessly in **any input language (IME)** — including Korean, Japanese, Chinese, Russian, Arabic, and full-width layouts — without switching your keyboard back to English.
 
@@ -35,6 +35,8 @@ Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**,
    - Change the Follow shortcut to any key or modifier combination in the popup. Shortcuts are automatically ignored when typing in text fields, replies, search bars, or direct messages.
 7. **Compact Floating "Posted" Pill (Default: On)**
    - Minimizes the large blue floating "Posted / Show new posts" banner on `/home` and `/notifications*` into a tiny translucent top-right micro icon (`↑ .`, expanding on hover) so it never blocks tweet content. Toggleable On/Off from the extension popup.
+8. **Home Tab Switching (`1`–`9`)**
+   - On `/home`, press `1`–`9` (or `G` then `1`–`9` / `0`) to jump to the corresponding top tab (For you, Following, custom lists…). The number hint is shown next to each tab label.
 
 ---
 

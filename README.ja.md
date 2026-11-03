@@ -2,7 +2,7 @@
 
 **言語 (Languages)**: [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.9-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.11-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
 
 IME（日本語かな・韓国語・中国語・ロシア語・アラビア語・全角入力など）を英数モードに切り替えることなく、**X.com (旧Twitter) のすべての標準キーボードショートカット（`?`）**に加えて、**フォロー/フォロー解除（`F`）**、**片思いフィルター（`Shift+F`）**、**確認ダイアログ操作（`Y`/`N`）**、**フォロワー/フォロー中タブ移動（`G` `V` / `G` `W` / `G` `O`）**をそのまま使える Chrome 拡張機能です。
 
@@ -35,6 +35,8 @@ IME（日本語かな・韓国語・中国語・ロシア語・アラビア語�
    - ポップアップからフォロー用ショートカットを任意のキーや修飾キーの組み合わせに変更可能です。ポスト作成欄・返信・検索バー・DM の入力中はショートカットが自動的に無効化されます。
 7. **フローティング「ポスト済」ボタンの最小化（デフォルト：オン）**
    - `/home` および `/notifications*` でタイムライン本文を隠してしまう青いフローティングボタンを、右上の超小型半透明アイコン（`↑ .`、ホバー時にテキスト展開）に最小化します。拡張機能ポップアップからオン/オフを切り替えられます。
+8. **ホームタブの数字キー切り替え（`1`–`9`）**
+   - `/home` で `1`–`9`（または `G` の後に `1`–`9` / `0`）を押すと、上部のタブ（おすすめ、フォロー中、リストなど）に直接移動します。各タブ名の横に数字ヒントが表示されます。
 
 ---
 
