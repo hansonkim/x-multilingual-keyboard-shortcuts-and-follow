@@ -722,6 +722,23 @@ function findFollowListTabLink(
   };
 }
 
+const HOME_TAB_INDEX_BY_CODE = {
+  Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4,
+  Digit6: 5, Digit7: 6, Digit8: 7, Digit9: 8, Digit0: 9
+};
+
+function findHomeTabLink(
+  code,
+  root = document,
+  pathname = typeof location !== 'undefined' ? location.pathname : ''
+) {
+  const index = HOME_TAB_INDEX_BY_CODE[code];
+  if (index === undefined || !/^\/home\/?$/.test(pathname)) return null;
+  const tablist = root.querySelector?.('[data-testid="primaryColumn"] [role="tablist"]');
+  const tabs = tablist?.querySelectorAll?.('[role="tab"]');
+  return (tabs && tabs[index]) || null;
+}
+
 const FOLLOW_BTN_SELECTOR =
   '[data-testid$="-follow"], [data-testid$="-unfollow"], button[aria-label*="팔로우"], [role="button"][aria-label*="팔로우"]';
 
@@ -1290,6 +1307,7 @@ function ensureStyles() {
     a[role="tab"][href$="/verified_followers"] div[dir="ltr"] > span:first-of-type::after { content: "g v"; }
     a[role="tab"][href$="/followers"] div[dir="ltr"] > span:first-of-type::after { content: "g w"; }
     a[role="tab"][href$="/following"] div[dir="ltr"] > span:first-of-type::after { content: "g o"; }
+    [data-xfs-home-idx]::after { content: attr(data-xfs-home-idx); align-self: center; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; font-size: 12px; font-weight: 600; color: currentColor; margin-left: 6px; pointer-events: none; user-select: none; }
   `;
   if (style.textContent !== css) {
     style.textContent = css;
@@ -1850,6 +1868,22 @@ function syncCompactPill(
   return { active: true, design };
 }
 
+function syncHomeTabHints() {
+  const onHome = showUiHints && /^\/home\/?$/.test(location.pathname);
+  for (const el of document.querySelectorAll?.('[data-xfs-home-idx]') || []) {
+    el.removeAttribute?.('data-xfs-home-idx');
+  }
+  if (!onHome) return;
+  const tabs = document.querySelectorAll?.('[data-testid="primaryColumn"] [role="tablist"] [role="tab"]') || [];
+  for (let i = 0; i < Math.min(tabs.length, 9); i++) {
+    const walker = document.createTreeWalker(tabs[i], NodeFilter.SHOW_TEXT, {
+      acceptNode: (n) => (n.nodeValue || '').trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+    });
+    const label = walker.nextNode()?.parentElement;
+    label?.setAttribute?.('data-xfs-home-idx', String(i + 1));
+  }
+}
+
 function syncUiHints() {
   if (typeof document === 'undefined' || !document.documentElement) return;
   document.getElementById('xfs-hud')?.remove();
@@ -1858,6 +1892,7 @@ function syncUiHints() {
   }
   syncFollowingFilter(document);
   syncCompactPill(document);
+  syncHomeTabHints();
   if (!showUiHints) {
     for (const prev of document.querySelectorAll?.('[data-xfs-target="true"]') || []) {
       prev.removeAttribute?.('data-xfs-target');
@@ -2001,7 +2036,7 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
   // 5. "g + ..." sequence second key
   if (activePrefix === 'g') {
     clearPendingPrefix();
-    const tabLink = findFollowListTabLink(code, root);
+    const tabLink = findFollowListTabLink(code, root) || findHomeTabLink(code, root);
     if (tabLink) {
       e.preventDefault();
       e.stopPropagation();
@@ -2054,6 +2089,19 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
     e.stopImmediatePropagation();
     dispatchNativeSpec(spec, {}, root);
     return true;
+  }
+
+  // 7b. Plain digits 1-9 on /home switch top tabs
+  if (/^Digit[1-9]$/.test(code || '')) {
+    const homeTab = findHomeTabLink(code, root);
+    if (homeTab) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      homeTab.click();
+      scheduleUiSync();
+      return true;
+    }
   }
 
   // 8. Standalone 'e' (Quote helper: opens repost menu via 't' so pressing 'e' again selects Quote)
@@ -2332,6 +2380,7 @@ if (typeof module !== 'undefined') {
     isStatusPage,
     findConfirmationDialogButton,
     findFollowListTabLink,
+    findHomeTabLink,
     findProfileFollowButton,
     handleActionIfMatched,
     clearPendingPrefix,
