@@ -96,6 +96,7 @@ https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/issues
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.0.12 | 2026-11-04 | Fix Windows IME `Ctrl+Enter` / `Cmd+Enter` post submission dropping the last composed syllable by waiting for `compositionend` and Draft.js/React state sync while swallowing premature follow-up `Enter` keydowns. | Draft |
 | 1.0.11 | 2026-11-03 | Add tab switching on `/home` with `1`–`9` (or `g` + `1`–`9`/`0`) and show the number hints on the top tabs. | Draft |
 | 1.0.10 | 2026-10-29 | Add Compact Floating "Posted" Pill on `/home` and `/notifications*` (default: On) with 3 selectable designs (`1. Top-right glass capsule`, `2. Top-docked slim bar`, `3. Top-right micro icon ↑ .`), instant live popup-to-tab updates, and 4-language label localization. | Submitted |
 | 1.0.9 | 2026-10-25 | Add Non-Follower Filter (`Shift+F` / sticky toggle bar) on `/following` to show only accounts that do not follow back, skip hidden mutuals on `J`/`K`, and align selected rows below the sticky header. | Published |

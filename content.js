@@ -1964,6 +1964,7 @@ function restoreCellFocusIfNeeded() {
 }
 
 let lastModalDismissAt = 0;
+let pendingComposingEnterSend = null;
 
 function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = false) {
   const code = resolveKeyCode(e);
@@ -1973,13 +1974,46 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
   if (isEditable(e.target)) {
     if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && code === 'Enter') {
       const spec = codeToNativeSpec('Enter', false);
+      if (pendingComposingEnterSend) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        return true;
+      }
       if (!forceDispatch && isAlreadyNativeAsciiEvent(e, spec)) {
         return false;
       }
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
-      dispatchNativeSpec(spec, { ctrlKey: e.ctrlKey, metaKey: e.metaKey }, root);
+      const modifiers = { ctrlKey: e.ctrlKey, metaKey: e.metaKey };
+      const composing = e.isComposing || e.key === 'Process' || e.keyCode === 229 || e.which === 229;
+      const target = e.target;
+      if (composing && typeof target?.addEventListener === 'function') {
+        // Windows IMEs commit the last composed syllable only after this keydown (on compositionend),
+        // and Chromium on Windows also fires a follow-up native keydown(Enter, keyCode: 13) right after
+        // compositionend before Draft.js (20ms timer) + React useEffect (TextChangeEffect) sync the text.
+        // Swallow any follow-up Enter keydowns while pending, and dispatch once 50ms after compositionend.
+        let sent = false;
+        let fallbackTimer = null;
+        const send = () => {
+          if (sent) return;
+          sent = true;
+          pendingComposingEnterSend = null;
+          clearTimeout(fallbackTimer);
+          target.removeEventListener?.('compositionend', onEnd, true);
+          dispatchNativeSpec(spec, modifiers, root);
+        };
+        const onEnd = () => {
+          clearTimeout(fallbackTimer);
+          fallbackTimer = setTimeout(send, 50);
+        };
+        pendingComposingEnterSend = send;
+        target.addEventListener('compositionend', onEnd, true);
+        fallbackTimer = setTimeout(send, 300);
+        return true;
+      }
+      dispatchNativeSpec(spec, modifiers, root);
       return true;
     }
     return false;

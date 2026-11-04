@@ -1138,4 +1138,68 @@ assert.ok(
   `manifest.json description length (${manifest.description.length}) exceeds Chrome Web Store 132-char limit`
 );
 
-console.log('All assertions passed.');
+// Ctrl+Enter during IME composition (Windows): wait for compositionend so the last syllable is not dropped
+(async () => {
+  const sent = [];
+  const compListeners = {};
+  const editor = {
+    nodeType: 1,
+    tagName: 'DIV',
+    isContentEditable: true,
+    addEventListener(type, fn) { (compListeners[type] ||= []).push(fn); },
+    removeEventListener(type, fn) { compListeners[type] = (compListeners[type] || []).filter((f) => f !== fn); },
+    dispatchEvent(ev) { sent.push({ type: ev.type, key: ev.key, ctrlKey: ev.ctrlKey }); return true; }
+  };
+  const editorDoc = { body: editor, activeElement: editor, querySelector: () => null, querySelectorAll: () => [] };
+  const composingEv = makeEv({ key: 'Process', code: 'Enter', keyCode: 229, isComposing: true, ctrlKey: true, target: editor });
+  assert.equal(handleActionIfMatched(composingEv, editorDoc, false), true);
+  assert.equal(sent.length, 0, 'must not send Ctrl+Enter before the composition commits');
+  for (const fn of compListeners.compositionend || []) fn({ type: 'compositionend' });
+  // Windows Chromium fires a follow-up native keydown(Enter, keyCode: 13) right after compositionend;
+  // it must be swallowed while the 50ms post-compositionend timer is pending.
+  let followUpPrevented = false;
+  const followUpNativeEnter = makeEv({
+    key: 'Enter',
+    code: 'Enter',
+    keyCode: 13,
+    which: 13,
+    isComposing: false,
+    ctrlKey: true,
+    target: editor,
+    preventDefault() { followUpPrevented = true; }
+  });
+  assert.equal(handleActionIfMatched(followUpNativeEnter, editorDoc, false), true);
+  assert.equal(followUpPrevented, true, 'must swallow premature follow-up native Enter keydown right after compositionend');
+  assert.equal(sent.length, 0, 'must not dispatch during follow-up native Enter before 50ms timer');
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(sent.length, 0, 'must wait for Draft.js to apply the commit after compositionend');
+  await new Promise((r) => setTimeout(r, 60));
+  assert.equal(sent.filter((ev) => ev.type === 'keydown').length, 1, 'Ctrl+Enter sent exactly once after compositionend');
+  assert.ok(sent.some((ev) => ev.type === 'keydown' && ev.key === 'Enter' && ev.ctrlKey), 'Ctrl+Enter sent after compositionend');
+  const count = sent.length;
+  await new Promise((r) => setTimeout(r, 350));
+  assert.equal(sent.length, count, 'fallback timer must not send a second time');
+
+  // Fallback: no compositionend -> still sends after timeout
+  sent.length = 0;
+  compListeners.compositionend = [];
+  assert.equal(handleActionIfMatched(makeEv({ key: 'Process', code: 'Enter', keyCode: 229, isComposing: true, ctrlKey: true, target: editor }), editorDoc, false), true);
+  await new Promise((r) => setTimeout(r, 350));
+  assert.ok(sent.some((ev) => ev.type === 'keydown' && ev.key === 'Enter'), 'fallback sends Ctrl+Enter');
+
+  // Late compositionend (280ms) cancels the 300ms fallback and still waits 50ms for Draft.js
+  sent.length = 0;
+  compListeners.compositionend = [];
+  assert.equal(handleActionIfMatched(makeEv({ key: 'Process', code: 'Enter', keyCode: 229, isComposing: true, ctrlKey: true, target: editor }), editorDoc, false), true);
+  await new Promise((r) => setTimeout(r, 280));
+  for (const fn of compListeners.compositionend || []) fn({ type: 'compositionend' });
+  await new Promise((r) => setTimeout(r, 35));
+  assert.equal(sent.length, 0, 'fallback must be cancelled once compositionend arrives');
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(sent.filter((ev) => ev.type === 'keydown').length, 1, 'sent exactly once after late compositionend');
+
+  console.log('All assertions passed.');
+})().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
