@@ -14,3 +14,7 @@
 3. **문서 동기화**: 사용자에게 보이는 기능이 바뀌면 README 4종(ko/en/ja/zh)의 기능 목록도 함께 갱신한다.
 4. **검증**: `node --check content.js && node test.cjs` 통과를 확인한다.
 5. **커밋·push**: 커밋 메시지에 버전을 포함한다(예: `feat: ... (v1.0.11)`). push 후 `gh run list --limit 1`로 Release 워크플로 성공 여부를 확인한다.
+
+## 로컬 지침 (`AGENTS.local.md`)
+
+저장소 루트에 `AGENTS.local.md` 파일이 존재하면 세션 시작 시 항상 함께 읽고 따른다.
