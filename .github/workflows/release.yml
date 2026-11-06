@@ -42,16 +42,42 @@ jobs:
         run: |
           TAG="${{ steps.meta.outputs.tag }}"
           VERSION="${{ steps.meta.outputs.version }}"
-          NOTES="## X Multilingual Keyboard Shortcuts & Follow ${TAG}
 
-          ### Safari (macOS / iOS) — Userscript
-          1. Install a Userscript extension for Safari such as [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) (free, open-source) or [Stay](https://apps.apple.com/app/stay-for-safari/id1591620171) / Tampermonkey.
-          2. Download **\`x-multilingual-keyboard-shortcuts-and-follow.user.js\`** (or \`x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip\`) from the Assets below and add it to your Userscripts directory.
-          3. Open \`https://x.com\` in Safari — all multilingual shortcuts (\`?\`), \`F\` Follow/Unfollow, \`Shift+F\` Non-Follower Filter on \`/following\`, \`Y/N\` confirmation modals, and \`G V/W/O\` tab navigation work immediately.
+          write_release_notes() {
+            local ver="$1"
+            local out="$2"
+            node -e '
+              const fs = require("node:fs");
+              const ver = process.argv[1];
+              const out = process.argv[2];
+              const tag = "v" + ver;
+              const md = fs.readFileSync("CHROMEWEBSTORE.md", "utf8");
+              let changes = "";
+              for (const line of md.split(/\r?\n/)) {
+                const m = line.match(/^\|\s*([0-9]+\.[0-9]+\.[0-9]+)\s*\|\s*([0-9-]+)\s*\|\s*(.+?)\s*\|\s*([^|]+?)\s*\|$/);
+                if (m && m[1] === ver) {
+                  changes = m[3].trim();
+                  break;
+                }
+              }
+              const whatsChanged = changes ? `\n### What\x27s Changed\n- ${changes}\n` : "";
+              const notes = [
+                `## X Multilingual Keyboard Shortcuts & Follow ${tag}`,
+                whatsChanged,
+                "### Safari (macOS / iOS) — Userscript",
+                "1. Install a Userscript extension for Safari such as [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) (free, open-source) or [Stay](https://apps.apple.com/app/stay-for-safari/id1591620171) / Tampermonkey.",
+                "2. Download **`x-multilingual-keyboard-shortcuts-and-follow.user.js`** (or `x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip`) from the Assets below and add it to your Userscripts directory.",
+                "3. Open `https://x.com` in Safari — all multilingual shortcuts (`?`), `F` Follow/Unfollow, `Shift+F` Non-Follower Filter on `/following`, `Y/N` confirmation modals, `1`–`9` home tab switching, and `G V/W/O` tab navigation work immediately.",
+                "\n### Chrome / Edge / Brave / Arc",
+                "- [Install from Chrome Web Store](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)",
+                "- Or download **`x-multilingual-keyboard-shortcuts-and-follow-chrome.zip`**, unzip, and load unpacked at `chrome://extensions/`."
+              ].filter(Boolean).join("\n");
+              fs.writeFileSync(out, notes + "\n", "utf8");
+            ' "$ver" "$out"
+          }
 
-          ### Chrome / Edge / Brave / Arc
-          - [Install from Chrome Web Store](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
-          - Or download **\`x-multilingual-keyboard-shortcuts-and-follow-chrome.zip\`**, unzip, and load unpacked at \`chrome://extensions/\`."
+          NOTES_FILE="$(mktemp)"
+          write_release_notes "$VERSION" "$NOTES_FILE"
 
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" \
@@ -59,7 +85,7 @@ jobs:
               dist/x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip \
               dist/x-multilingual-keyboard-shortcuts-and-follow-chrome.zip \
               --clobber
-            gh release edit "$TAG" --title "X Multilingual Keyboard Shortcuts & Follow ${TAG}" --notes "$NOTES"
+            gh release edit "$TAG" --title "X Multilingual Keyboard Shortcuts & Follow ${TAG}" --notes-file "$NOTES_FILE"
           else
             gh release create "$TAG" \
               dist/x-multilingual-keyboard-shortcuts-and-follow.user.js \
@@ -67,8 +93,20 @@ jobs:
               dist/x-multilingual-keyboard-shortcuts-and-follow-chrome.zip \
               --target main \
               --title "X Multilingual Keyboard Shortcuts & Follow ${TAG}" \
-              --notes "$NOTES"
+              --notes-file "$NOTES_FILE"
           fi
+
+          # Backfill release notes for any existing releases missing "What's Changed"
+          for EXISTING_TAG in $(gh release list --limit 30 --json tagName -q '.[].tagName'); do
+            [ "$EXISTING_TAG" = "$TAG" ] && continue
+            EXISTING_VER="${EXISTING_TAG#v}"
+            EXISTING_BODY="$(gh release view "$EXISTING_TAG" --json body -q '.body')"
+            if ! printf '%s' "$EXISTING_BODY" | grep -q "### What's Changed"; then
+              write_release_notes "$EXISTING_VER" "$NOTES_FILE"
+              gh release edit "$EXISTING_TAG" --title "X Multilingual Keyboard Shortcuts & Follow ${EXISTING_TAG}" --notes-file "$NOTES_FILE"
+            fi
+          done
+          rm -f "$NOTES_FILE"
 
       - name: Upload & Publish to Chrome Web Store (CWS API v2)
         env:
