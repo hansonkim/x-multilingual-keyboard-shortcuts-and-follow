@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   release:
@@ -108,32 +109,74 @@ jobs:
           done
           rm -f "$NOTES_FILE"
 
-      - name: Upload & Publish to Chrome Web Store (CWS API v2)
+      - name: Authenticate to Google Cloud (Chrome Web Store API)
+        id: cws_auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/886328069598/locations/global/workloadIdentityPools/github/providers/github
+          service_account: cws-publisher@mermaid-peek-cd.iam.gserviceaccount.com
+          token_format: access_token
+          access_token_scopes: https://www.googleapis.com/auth/chromewebstore
+
+      - name: Upload to Chrome Web Store (CWS API v2)
         env:
-          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
-          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
-          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          ACCESS_TOKEN: ${{ steps.cws_auth.outputs.access_token }}
           CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID || '0ad8e2f8-f351-4bef-ae4c-32635ae702cb' }}
           CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID || 'helbbdgikebbpbjjejmkkappejlhaglf' }}
+          VERSION: ${{ steps.meta.outputs.version }}
         run: |
-          if [ -z "$CWS_CLIENT_ID" ] || [ -z "$CWS_CLIENT_SECRET" ] || [ -z "$CWS_REFRESH_TOKEN" ]; then
-            echo "::notice::Skipping Chrome Web Store API upload in GitHub Actions (CWS_CLIENT_ID / CWS_CLIENT_SECRET / CWS_REFRESH_TOKEN secrets not configured)."
-            exit 0
-          fi
-          ACCESS_TOKEN=$(curl -sS -X POST "https://oauth2.googleapis.com/token" \
-            -d "client_id=${CWS_CLIENT_ID}" \
-            -d "client_secret=${CWS_CLIENT_SECRET}" \
-            -d "refresh_token=${CWS_REFRESH_TOKEN}" \
-            -d "grant_type=refresh_token" | jq -r '.access_token')
-          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
+          if [ -z "$ACCESS_TOKEN" ]; then
             echo "::error::Failed to obtain Chrome Web Store OAuth access token."
             exit 1
           fi
-          curl -sS -f -X POST \
+
+          UPLOAD_RES=$(curl -sS -f -X POST \
             -H "Authorization: Bearer ${ACCESS_TOKEN}" \
             -H "Content-Type: application/zip" \
             --data-binary @dist/x-multilingual-keyboard-shortcuts-and-follow-chrome.zip \
-            "https://chromewebstore.googleapis.com/upload/v2/publishers/${CWS_PUBLISHER_ID}/items/${CWS_EXTENSION_ID}:upload"
-          curl -sS -f -X POST \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            "https://chromewebstore.googleapis.com/v2/publishers/${CWS_PUBLISHER_ID}/items/${CWS_EXTENSION_ID}:publish"
+            "https://chromewebstore.googleapis.com/upload/v2/publishers/${CWS_PUBLISHER_ID}/items/${CWS_EXTENSION_ID}:upload")
+          echo "$UPLOAD_RES"
+
+          STATE=$(printf '%s' "$UPLOAD_RES" | jq -r '.uploadState')
+          for _ in $(seq 1 30); do
+            case "$STATE" in
+              *IN_PROGRESS*)
+                sleep 5
+                STATUS_RES=$(curl -sS -f \
+                  -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+                  "https://chromewebstore.googleapis.com/v2/publishers/${CWS_PUBLISHER_ID}/items/${CWS_EXTENSION_ID}:fetchStatus")
+                STATE=$(printf '%s' "$STATUS_RES" | jq -r '.lastAsyncUploadState')
+                ;;
+              *)
+                break
+                ;;
+            esac
+          done
+
+          if [ "$STATE" != "SUCCEEDED" ]; then
+            echo "::error::Chrome Web Store draft upload failed (uploadState=${STATE})."
+            exit 1
+          fi
+
+          CWS_STATUS=$(node -e '
+            const fs = require("node:fs");
+            const ver = process.argv[1];
+            const md = fs.readFileSync("CHROMEWEBSTORE.md", "utf8");
+            for (const line of md.split(/\r?\n/)) {
+              const m = line.match(/^\|\s*([0-9]+\.[0-9]+\.[0-9]+)\s*\|\s*([0-9-]+)\s*\|\s*(.+?)\s*\|\s*([^|]+?)\s*\|$/);
+              if (m && m[1] === ver) {
+                process.stdout.write(m[4].trim());
+                break;
+              }
+            }
+          ' "$VERSION")
+
+          if [ "$CWS_STATUS" = "Submitted" ]; then
+            curl -sS -f -X POST \
+              -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d '{}' \
+              "https://chromewebstore.googleapis.com/v2/publishers/${CWS_PUBLISHER_ID}/items/${CWS_EXTENSION_ID}:publish"
+          else
+            echo "Uploaded v${VERSION} to Chrome Web Store draft (CHROMEWEBSTORE.md Status=${CWS_STATUS:-Draft})."
+          fi

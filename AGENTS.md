@@ -2,7 +2,7 @@
 
 ## Release 절차
 
-`main`에 push하면 `.github/workflows/release.yml`(CD)이 `node test.cjs` → `node scripts/build-release.cjs` → `manifest.json`의 version으로 `v<version>` GitHub Release 생성/갱신을 수행한다. 따라서 릴리스에 포함할 변경은 push 전에 버전을 올려야 한다.
+`main`에 push하면 `.github/workflows/release.yml`(CD)이 `node test.cjs` → `node scripts/build-release.cjs` → `manifest.json`의 version으로 `v<version>` GitHub Release 생성/갱신 → Chrome Web Store API v2(Workload Identity Federation)로 초안(Draft) 패키지 업로드(`CHROMEWEBSTORE.md`의 해당 버전 Status가 `Submitted`면 검토 제출까지)를 수행한다. 따라서 릴리스에 포함할 변경은 push 전에 버전을 올려야 한다.
 
 기능 추가·수정을 릴리스할 때마다 아래를 같은 변경에 포함한다.
 
