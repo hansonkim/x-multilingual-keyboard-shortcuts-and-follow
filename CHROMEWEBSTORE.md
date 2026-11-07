@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — X Multilingual Keyboard Shortcuts & Follow
 
-> Last Updated: 2026-10-29
+> Last Updated: 2026-11-07
 
 ## Store Listing
 
@@ -10,32 +10,41 @@ X Multilingual Keyboard Shortcuts & Follow
 **Short Description** [REQUIRED]
 Use all X.com shortcuts plus Follow/Unfollow (F), Non-Follower Filter (Shift+F), Modal (Y/N), and Tab nav (g v/w/o) in any IME.
 
-**Detailed Description** [REQUIRED]
-X Multilingual Keyboard Shortcuts & Follow adds fast keyboard shortcuts for following/unfollowing accounts on X.com and makes every X.com keyboard shortcut work seamlessly across Korean, Japanese, Chinese, Russian, Arabic, and other input languages (IME) without switching your keyboard layout to English.
+**Detailed Description (Korean)** [REQUIRED]
+X Multilingual Keyboard Shortcuts & Follow는 한/영 키를 전환하지 않고 한국어(한글), 일본어, 중국어 등 모든 다국어 입력 상태(IME)에서 X.com(트위터)의 전체 기본 단축키(?)와 팔로우/언팔로우(F), 맞팔 안 한 계정 필터(Shift+F), 확인 모달(Y/N), 홈 상단 탭 숫자 이동(1–9), 팔로워/팔로잉 탭 이동(G V / G W / G O) 단축키를 바로 사용할 수 있게 해주는 확장 프로그램입니다.
 
-Key Features:
-1. Follow / Unfollow / Follow Back Shortcut (Default: F):
-   - Profile & Status Pages: Press F on any user profile page or post status page to instantly click the user's Follow, Following, or Follow Back button.
-   - Follower & Following Lists (/verified_followers, /followers, /following): Navigate users with J / K (including continuous scroll when holding J or K) and press F to Follow, Follow Back, or Unfollow the selected user.
-   - Hover Cards: When a user profile hover card is open, pressing F targets the hover card's Follow/Unfollow button.
-2. Quick Confirmation Dialog Shortcuts (Y / N):
-   - When an Unfollow, Mute, or Block confirmation dialog appears, press Y to confirm or N to cancel without using your mouse.
-3. Follower & Following List Navigation (g v / g w / g o) & Non-Follower Filter (Shift+F):
-   - Press g v (Verified Followers), g w (Followers), or g o (Following) from any page on X.com to jump directly to the corresponding tab.
-   - On the Following (/following) page, click the filter pill or press Shift+F to show only accounts that do not follow you back, while J / K skips hidden mutual followers automatically.
-4. Full Multilingual Support for All X.com (?) Shortcuts:
-   - Use every built-in X.com shortcut (?, j, k, Space, ., n, /, l, r, t, s, b, u, x, Enter, o, i, m, e for Quote, g + h/e/n/r/p/f/t/l/i/m/g/c/s/b/u/d, and a + d/Space/m) directly while typing in Korean, Japanese, Chinese, Russian, Arabic, or full-width IME modes.
-5. On-Screen Shortcut Hints (Show / Hide Option):
-   - Displays subtle inline shortcut labels matching each button or menu item's native text color. On follower/following lists, the F hint appears exclusively on the user selected via J / K. You can toggle these hints on or off anytime from the extension popup.
-6. Customizable Follow Shortcut & Smart Input Detection:
-   - Customize the Follow shortcut to any key or modifier combination in the popup. Key presses are automatically ignored while typing inside text fields, replies, search bars, or direct messages.
-7. Compact Floating "Posted" Pill (Default: On, 3 Selectable Designs):
-   - Minimizes the floating "Posted" pill on `/home` and `/notifications*` so it never blocks post content, with live On/Off toggle, 3 selectable designs (1. Top-right glass capsule, 2. Top-docked slim bar, 3. Top-right micro icon `↑ .`), and 4-language label localization.
+주요 기능:
+1. 팔로우 / 언팔로우 / 맞팔로우 단축키 (기본값: F / 한글 ㄹ)
+   - 프로필 및 게시물 상세(status) 페이지: 프로필이나 게시물 상세 화면에서 F(ㄹ)를 누르면 해당 계정의 팔로우, 팔로잉(언팔로우), 서로 팔로우하기(맞팔로우) 버튼을 즉시 클릭합니다.
+   - 팔로워·팔로잉 목록 (/verified_followers, /followers, /following): J / K(ㅓ / ㅏ)로 계정을 이동(길게 누르면 연속 스크롤 이동 지원)한 뒤 F(ㄹ)를 눌러 선택된 계정을 팔로우·맞팔로우·언팔로우합니다.
+   - 프로필 호버 카드: 프로필 미리보기 카드가 열려 있을 때 F를 누르면 호버 카드 안의 팔로우/언팔로우 버튼을 우선 동작시킵니다.
 
-Privacy & Permissions:
-This extension only runs on x.com and twitter.com and uses Chrome storage solely to save your shortcut preferences. No personal data, browsing history, or account information is collected or transmitted.
+2. 언팔로우·차단·뮤트 확인 모달 단축키 (Y / N)
+   - 언팔로우, 뮤트, 차단 확인 창이 떴을 때 마우스 없이 Y(ㅛ)로 확인, N(ㅜ)으로 취소할 수 있습니다.
 
-Source Code & Documentation (GitHub):
+3. 팔로워 / 팔로잉 탭 바로 이동 (G V / G W / G O) 및 맞팔 안 한 계정 필터 (Shift + F)
+   - X.com 어느 화면에서나 G V(인증된 팔로워), G W(팔로워), G O(팔로잉)를 눌러 해당 탭으로 즉시 이동합니다.
+   - 팔로잉(/following) 페이지 상단 고정 필터 버튼을 클릭하거나 Shift + F(Shift + ㄹ)를 누르면 나를 팔로우하지 않는 계정만 필터링하며, J / K 이동 시 숨겨진 맞팔 계정을 자동으로 건너뛰고 선택된 카드를 고정 헤더 아래에 정렬합니다.
+
+4. 홈 상단 탭 숫자 이동 (1–9 / G + 1–9, 0)
+   - 홈(/home) 화면에서 숫자 1–9(또는 G 입력 후 1–9 / 0)를 눌러 추천, 팔로잉, 사용자 리스트 등 상단 탭으로 바로 전환하며, 각 탭 이름 옆에 숫자 단축키 힌트가 표시됩니다.
+
+5. X.com (?) 전체 기본 단축키 다국어 IME 완벽 지원 및 한글 조합 전송 보정
+   - 한글(ㅎ, ㅓ, ㅏ, ㅣ 등), 일본어, 중국어, 러시아어, 아랍어, 전각 문자 입력 상태에서도 영문 전환 없이 모든 X 기본 단축키(?, J, K, Space, ., N, /, L, R, T, S, B, U, X, Enter, O, I, M, 인용 E, G + H/E/N/R/P/F/T/L/I/M/G/C/S/B/U/D, A + D/Space/M)가 그대로 작동합니다.
+   - Windows 등 한글 IME 조합 중 Ctrl+Enter / Cmd+Enter로 게시물 전송 시 마지막 조합 중인 글자가 잘리지 않도록 자동 보정합니다.
+
+6. 플로팅 "게시됨" 버튼 최소화 (컨텐츠 가림 방지, 기본값: On, 3가지 디자인 선택)
+   - /home 및 /notifications* 화면에서 본문을 가리는 파란색 플로팅 "게시됨" 알림 버튼을 축소하여 게시물 가림을 방지합니다.
+   - 확장 프로그램 팝업에서 실시간 On/Off 토글 및 3가지 디자인(1. 우측 상단 글래스 캡슐, 2. 상단 탭바 밀착 슬림 바, 3. 우측 상단 초소형 아이콘 ↑ .) 선택을 지원합니다.
+
+7. 화면 내 단축키 힌트 표시/숨기기 및 4개 국어(한·영·일·중) 팝업 설정
+   - 각 버튼·메뉴의 텍스트 색상에 맞춘 자연스러운 단축키 힌트를 표시하며, 팔로워/팔로잉 목록에서는 J / K로 선택된 행에만 F 힌트가 표시됩니다. 팝업에서 언제든 켜거나 끌 수 있습니다.
+   - 팔로우 단축키를 원하는 단일 키 또는 조합키로 자유롭게 변경할 수 있으며, 게시물 작성창·답글·검색창·DM 입력 중에는 단축키가 자동으로 무시됩니다.
+
+개인정보 보호 및 권한 안내:
+이 확장 프로그램은 x.com 및 twitter.com에서만 동작하며, chrome.storage 권한은 사용자의 단축키 및 UI 설정을 브라우저에 저장하는 용도로만 사용됩니다. 어떠한 개인정보나 브라우징 기록도 외부로 수집하거나 전송하지 않습니다.
+
+소스 코드 및 문서 (GitHub):
 https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow
 
 **Category** [REQUIRED]
@@ -45,7 +54,7 @@ Social & Communication
 Provides keyboard shortcuts for Follow/Unfollow actions, confirmation dialogs, and multilingual X.com navigation on X.com.
 
 **Primary Language** [REQUIRED]
-English
+Korean (한국어)
 
 **Homepage URL**
 https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow
