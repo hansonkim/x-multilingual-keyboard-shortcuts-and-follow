@@ -535,38 +535,118 @@ if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
   registerUserscriptMenuCommands();
 }
 
+const EDITABLE_ROLES = new Set(['textbox', 'searchbox', 'combobox', 'spinbutton']);
+const EDITABLE_SELECTOR =
+  '[contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"], [role="textbox"], [role="searchbox"], [role="combobox"], [role="spinbutton"], input, textarea, select';
+const XCHAT_HOST_SELECTOR =
+  '[data-testid="xchatEmbedRoute"], [data-testid="xchatEmbedDrawer"], [data-testid="xchatEmbedOverlays"], [data-testid="chat-drawer-root"]';
+const XCHAT_OVERLAY_SELECTOR =
+  '[data-testid="xchatEmbedDrawer"], [data-testid="xchatEmbedOverlays"], [data-testid="chat-drawer-root"]';
+const MODAL_DIALOG_SELECTOR = '[role="dialog"], [aria-modal="true"]';
+const CHAT_PATH_RE = /^\/(?:i\/chat|messages)(?:\/|$)/i;
+
+function getShadowRoot(el) {
+  if (!el || el.nodeType !== 1) return null;
+  if (el.shadowRoot) return el.shadowRoot;
+  if (typeof chrome !== 'undefined' && typeof chrome?.dom?.openOrClosedShadowRoot === 'function') {
+    try {
+      return chrome.dom.openOrClosedShadowRoot(el);
+    } catch (_) {}
+  }
+  return null;
+}
+
+function isEmbeddedFrameElement(el) {
+  if (!el || el.nodeType !== 1) return false;
+  const tag = el.tagName;
+  return tag === 'IFRAME' || tag === 'OBJECT' || tag === 'EMBED';
+}
+
 function getDeepActiveElement(root = typeof document !== 'undefined' ? document : null) {
   let active = root?.activeElement || null;
-  while (active?.shadowRoot?.activeElement && active.shadowRoot.activeElement !== active) {
-    active = active.shadowRoot.activeElement;
+  const visited = typeof Set !== 'undefined' ? new Set() : null;
+  while (active && (!visited || !visited.has(active))) {
+    visited?.add(active);
+    const sr = getShadowRoot(active);
+    if (sr?.activeElement && sr.activeElement !== active) {
+      active = sr.activeElement;
+      continue;
+    }
+    if (active.tagName === 'IFRAME') {
+      try {
+        const innerActive = active.contentDocument?.activeElement;
+        if (innerActive && innerActive !== active) {
+          active = innerActive;
+          continue;
+        }
+      } catch (_) {}
+    }
+    break;
   }
   return active;
 }
 
-function isEditableNode(el) {
+function isDirectEditableElement(el) {
   if (!el || el.nodeType !== 1) return false;
   const tag = el.tagName;
-  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable) {
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable || Boolean(el.editContext)) {
     return true;
   }
   const ce = el.getAttribute?.('contenteditable');
   if (ce === '' || ce === 'true' || ce === 'plaintext-only') {
     return true;
   }
-  return Boolean(
-    el.closest?.(
-      '[contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"], [role="textbox"], [role="searchbox"], input, textarea, select'
-    )
-  );
+  const role = (el.getAttribute?.('role') || '').toLowerCase();
+  if (role && EDITABLE_ROLES.has(role)) {
+    return true;
+  }
+  return false;
+}
+
+function isEditableNode(el) {
+  if (!el || el.nodeType !== 1) return false;
+  let cur = el;
+  const visited = typeof Set !== 'undefined' ? new Set() : null;
+  while (cur && cur.nodeType === 1 && (!visited || !visited.has(cur))) {
+    visited?.add(cur);
+    if (isDirectEditableElement(cur)) return true;
+    if (cur.parentElement) {
+      cur = cur.parentElement;
+      continue;
+    }
+    const rootNode = cur.getRootNode?.();
+    if (rootNode?.host && rootNode.host.nodeType === 1) {
+      cur = rootNode.host;
+      continue;
+    }
+    break;
+  }
+  return Boolean(el.closest?.(EDITABLE_SELECTOR));
 }
 
 function isEditable(el) {
   let cur = el;
-  while (cur && cur.nodeType === 1) {
+  const visited = typeof Set !== 'undefined' ? new Set() : null;
+  while (cur && cur.nodeType === 1 && (!visited || !visited.has(cur))) {
+    visited?.add(cur);
     if (isEditableNode(cur)) return true;
-    const next = cur.shadowRoot?.activeElement;
-    if (!next || next === cur) break;
-    cur = next;
+    const sr = getShadowRoot(cur);
+    if (sr?.activeElement && sr.activeElement !== cur) {
+      cur = sr.activeElement;
+      continue;
+    }
+    if (cur.tagName === 'IFRAME') {
+      try {
+        const innerActive = cur.contentDocument?.activeElement;
+        if (innerActive && innerActive !== cur) {
+          cur = innerActive;
+          continue;
+        }
+      } catch (_) {}
+      return true;
+    }
+    if (isEmbeddedFrameElement(cur)) return true;
+    break;
   }
   return false;
 }
@@ -581,8 +661,15 @@ function getEventTarget(e, root = typeof document !== 'undefined' ? document : n
     }
   }
   let target = e?.target || null;
-  while (target?.shadowRoot?.activeElement && target.shadowRoot.activeElement !== target) {
-    target = target.shadowRoot.activeElement;
+  const visited = typeof Set !== 'undefined' ? new Set() : null;
+  while (target && (!visited || !visited.has(target))) {
+    visited?.add(target);
+    const sr = getShadowRoot(target);
+    if (sr?.activeElement && sr.activeElement !== target) {
+      target = sr.activeElement;
+      continue;
+    }
+    break;
   }
   return target || getDeepActiveElement(root);
 }
@@ -591,15 +678,127 @@ function isEditableEvent(e, root = typeof document !== 'undefined' ? document : 
   if (e) {
     if (typeof e.composedPath === 'function') {
       for (const node of e.composedPath()) {
-        if (node && node.nodeType === 1 && isEditableNode(node)) {
+        if (node && node.nodeType === 1 && (isEditableNode(node) || isEmbeddedFrameElement(node))) {
           return true;
         }
       }
     }
     if (isEditable(e.target)) return true;
   }
+  if (isEmbeddedFrameElement(root?.activeElement)) return true;
   const deepActive = getDeepActiveElement(root);
-  return Boolean(deepActive && isEditableNode(deepActive));
+  return Boolean(deepActive && (isEditableNode(deepActive) || isEmbeddedFrameElement(deepActive)));
+}
+
+function matchesElementTestId(el, testIds) {
+  const tid = el?.getAttribute?.('data-testid');
+  return Boolean(tid && testIds.has(tid));
+}
+
+const XCHAT_HOST_TESTIDS = new Set([
+  'xchatEmbedRoute',
+  'xchatEmbedDrawer',
+  'xchatEmbedOverlays',
+  'chat-drawer-root'
+]);
+const XCHAT_OVERLAY_TESTIDS = new Set([
+  'xchatEmbedDrawer',
+  'xchatEmbedOverlays',
+  'chat-drawer-root'
+]);
+
+function nodeTouchesTestIdsOrSelector(node, testIds, selector) {
+  let cur = node;
+  const visited = typeof Set !== 'undefined' ? new Set() : null;
+  while (cur && (!visited || !visited.has(cur))) {
+    visited?.add(cur);
+    if (cur.nodeType === 1) {
+      if (testIds && matchesElementTestId(cur, testIds)) return true;
+      if (selector && (cur.matches?.(selector) || cur.closest?.(selector))) return true;
+      if (cur.parentElement) {
+        cur = cur.parentElement;
+        continue;
+      }
+    }
+    const rootNode = cur.getRootNode?.();
+    if (rootNode?.host) {
+      cur = rootNode.host;
+      continue;
+    }
+    break;
+  }
+  return false;
+}
+
+function eventTouchesContext(e, root, testIds, selector) {
+  if (e) {
+    if (typeof e.composedPath === 'function') {
+      for (const node of e.composedPath()) {
+        if (nodeTouchesTestIdsOrSelector(node, testIds, selector)) return true;
+      }
+    }
+    if (nodeTouchesTestIdsOrSelector(e.target, testIds, selector)) return true;
+  }
+  if (nodeTouchesTestIdsOrSelector(root?.activeElement, testIds, selector)) return true;
+  const deepActive = getDeepActiveElement(root);
+  if (deepActive && deepActive !== root?.activeElement && nodeTouchesTestIdsOrSelector(deepActive, testIds, selector)) {
+    return true;
+  }
+  return false;
+}
+
+function isInsideXChatOverlay(e, root = typeof document !== 'undefined' ? document : null) {
+  return eventTouchesContext(e, root, XCHAT_OVERLAY_TESTIDS, XCHAT_OVERLAY_SELECTOR);
+}
+
+function isInsideXChatContext(
+  e,
+  root = typeof document !== 'undefined' ? document : null,
+  pathname = typeof location !== 'undefined' ? location.pathname : ''
+) {
+  if (typeof pathname === 'string' && CHAT_PATH_RE.test(pathname)) return true;
+  return eventTouchesContext(e, root, XCHAT_HOST_TESTIDS, XCHAT_HOST_SELECTOR);
+}
+
+function isInsideModalDialog(e, root = typeof document !== 'undefined' ? document : null) {
+  return eventTouchesContext(e, root, null, MODAL_DIALOG_SELECTOR);
+}
+
+function isNodeInsideShadowTree(node, shadowRoot) {
+  if (!node || !shadowRoot) return false;
+  let cur = node;
+  const visited = typeof Set !== 'undefined' ? new Set() : null;
+  while (cur && (!visited || !visited.has(cur))) {
+    visited?.add(cur);
+    if (cur === shadowRoot) return true;
+    if (shadowRoot.contains?.(cur)) return true;
+    const rootNode = cur.getRootNode?.();
+    if (rootNode === shadowRoot) return true;
+    if (rootNode?.host) {
+      cur = rootNode.host;
+      continue;
+    }
+    cur = cur.parentNode || null;
+  }
+  return false;
+}
+
+function shouldSwallowUntrustedShadowEvent(e, root = typeof document !== 'undefined' ? document : null) {
+  if (!e || e.isTrusted !== false || syntheticEvents.has(e)) return false;
+  const topActive = root?.activeElement || null;
+  if (!topActive) return false;
+  const topShadow = getShadowRoot(topActive);
+  if (!topShadow) return false;
+  const deepActive = getDeepActiveElement(root);
+  if (!deepActive || deepActive === topActive || (!isEditableNode(deepActive) && !isEmbeddedFrameElement(deepActive))) {
+    return false;
+  }
+  const path = typeof e.composedPath === 'function' ? e.composedPath() : null;
+  const originNode = path && path.length > 0 ? path[0] : e.target;
+  if (originNode && originNode !== topActive && isNodeInsideShadowTree(originNode, topShadow)) {
+    return false;
+  }
+  return true;
 }
 
 function matchesShortcut(e, sc) {
@@ -2149,6 +2348,13 @@ function restoreCellFocusIfNeeded() {
   for (const delay of [50, 150]) {
     setTimeout(() => {
       const active = document.activeElement;
+      if (
+        isEditable(active) ||
+        nodeTouchesTestIdsOrSelector(active, XCHAT_HOST_TESTIDS, XCHAT_HOST_SELECTOR)
+      ) {
+        scheduleUiSync();
+        return;
+      }
       const inCell =
         active?.closest?.('[data-testid="UserCell"]') ||
         active?.closest?.('[data-testid="cellInnerDiv"]')?.querySelector?.('[data-testid="UserCell"]');
@@ -2177,6 +2383,7 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
 
   // 1. Inside editable fields: only support Cmd+Enter / Ctrl+Enter (Send post) when IME is composing
   if (isEditableEvent(e, root)) {
+    clearPendingPrefix();
     if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && code === 'Enter') {
       const spec = codeToNativeSpec('Enter', false);
       if (pendingComposingEnterSend) {
@@ -2221,6 +2428,13 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
       dispatchNativeSpec(spec, modifiers, root);
       return true;
     }
+    return false;
+  }
+
+  // 1b. Inside floating Chat drawer / Chat modal overlays (e.g. XChat 4-digit PIN screen, chat messages):
+  // never hijack keys for background timeline or navigation shortcuts.
+  if (isInsideXChatOverlay(e, root)) {
+    clearPendingPrefix();
     return false;
   }
 
@@ -2333,8 +2547,16 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
     return true;
   }
 
-  // 7b. Plain digits 1-9 on /home switch top tabs
-  if (/^Digit[1-9]$/.test(code || '')) {
+  // On /i/chat, /messages, or inside XChat embeds: never synthesize single-key tweet/compose shortcuts
+  // (such as Korean 'ㅜ' -> 'n' opening Compose Post when chat message history or PIN UI is focused).
+  if (isInsideXChatContext(e, root)) {
+    return false;
+  }
+
+  const inModalDialog = isInsideModalDialog(e, root);
+
+  // 7b. Plain digits 1-9 on /home switch top tabs (unless a modal dialog is focused)
+  if (!inModalDialog && /^Digit[1-9]$/.test(code || '')) {
     const homeTab = findHomeTabLink(code, root);
     if (homeTab) {
       e.preventDefault();
@@ -2357,7 +2579,7 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
   }
 
   // 8b. On /following, /followers, /verified_followers: step between cells on J / K and align selected cell directly below sticky header + filter bar
-  if ((code === 'KeyJ' || code === 'KeyK') && isFollowFilterPage()) {
+  if (!inModalDialog && (code === 'KeyJ' || code === 'KeyK') && isFollowFilterPage()) {
     if (stepFollowingCell(code, root)) {
       e.preventDefault();
       e.stopPropagation();
@@ -2399,27 +2621,35 @@ function handleActionIfMatched(e, root = document, forceDispatch = false) {
       return true;
     }
 
+    const inChat = isInsideXChatContext(e, root);
+    const inModal = isInsideModalDialog(e, root);
+
     // 2. Check the Follow / Unfollow / Follow back shortcut (unless 'g' prefix is active for 'g f' = Drafts!)
     const activePrefix = getActivePrefix();
     const isGfDraftsSequence = activePrefix === 'g' && resolveKeyCode(e) === 'KeyF' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey;
     if (!isGfDraftsSequence && matchesShortcut(e, shortcut)) {
-      const btn = findProfileFollowButton(root);
-      if (btn) {
-        clearPendingPrefix();
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        btn.click();
-        if (btn.getAttribute('data-testid')?.endsWith('-follow')) {
-          restoreCellFocusIfNeeded();
+      const hoverCardOpen = Boolean(root?.querySelector?.('[data-testid="HoverCard"]'));
+      if (hoverCardOpen || (!inChat && !inModal)) {
+        const btn = findProfileFollowButton(root);
+        if (btn) {
+          clearPendingPrefix();
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          btn.click();
+          if (btn.getAttribute('data-testid')?.endsWith('-follow')) {
+            restoreCellFocusIfNeeded();
+          }
+          scheduleUiSync();
+          return true;
         }
-        scheduleUiSync();
-        return true;
       }
     }
 
     // 2b. On /following, /followers, /verified_followers: Shift + F toggles the follow filter in any input language
     if (
+      !inChat &&
+      !inModal &&
       isFollowFilterPage() &&
       !activePrefix &&
       e.shiftKey &&
@@ -2445,6 +2675,7 @@ const REPEATABLE_CODES = new Set(['KeyJ', 'KeyK', 'Space']);
 const handledKeysDown = new Set();
 const seenKeysDown = new Set();
 const ignoredModifierKeysDown = new Set();
+let pendingUnresolvedEditableKeydown = false;
 let repeatDelayTimer = null;
 let repeatIntervalTimer = null;
 let repeatingCode = null;
@@ -2475,6 +2706,10 @@ function startRepeatTimer(code) {
         clearRepeatTimer();
         return;
       }
+      if (isEditableEvent(null, document) || isInsideXChatContext(null, document) || isInsideModalDialog(null, document)) {
+        clearRepeatTimer();
+        return;
+      }
       if (isFollowFilterPage()) {
         stepFollowingCell(code, document);
       } else {
@@ -2489,11 +2724,25 @@ window.addEventListener(
   (e) => {
     if (syntheticEvents.has(e)) return;
 
+    if (shouldSwallowUntrustedShadowEvent(e, document)) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      return;
+    }
+
     const code = resolveKeyCode(e);
+    const editable = isEditableEvent(e, document);
+    if (editable) {
+      clearPendingPrefix();
+      if (!code) pendingUnresolvedEditableKeydown = true;
+    } else {
+      pendingUnresolvedEditableKeydown = false;
+    }
     if (code) seenKeysDown.add(code);
 
     // Swallow delayed synthetic Y/N dispatches from external Korean shortcut extensions right after modal close
-    if (Date.now() - lastModalDismissAt < 600 && (code === 'KeyN' || code === 'KeyY') && !isEditableEvent(e, document)) {
+    if (Date.now() - lastModalDismissAt < 600 && (code === 'KeyN' || code === 'KeyY') && !editable) {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -2537,9 +2786,29 @@ window.addEventListener(
 );
 
 window.addEventListener(
+  'keypress',
+  (e) => {
+    if (syntheticEvents.has(e)) return;
+    if (shouldSwallowUntrustedShadowEvent(e, document)) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+    }
+  },
+  true
+);
+
+window.addEventListener(
   'keyup',
   (e) => {
     if (syntheticEvents.has(e)) return;
+
+    if (shouldSwallowUntrustedShadowEvent(e, document)) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      return;
+    }
 
     scheduleUiSync();
     const code = resolveKeyCode(e);
@@ -2568,6 +2837,11 @@ window.addEventListener(
       return;
     }
 
+    if (pendingUnresolvedEditableKeydown) {
+      pendingUnresolvedEditableKeydown = false;
+      return;
+    }
+
     // If keydown WAS seen by our listener and wasn't handled (e.g. native English key handled by X.com directly),
     // do not re-trigger on keyup.
     if (wasSeenOnKeydown) {
@@ -2585,6 +2859,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     handledKeysDown.clear();
     seenKeysDown.clear();
     ignoredModifierKeysDown.clear();
+    pendingUnresolvedEditableKeydown = false;
     clearPendingPrefix();
   });
   window.addEventListener('focusin', scheduleUiSync, true);
@@ -2630,6 +2905,9 @@ if (typeof module !== 'undefined') {
     formatShortcutLabel,
     isEditable,
     isEditableEvent,
+    shouldSwallowUntrustedShadowEvent,
+    isInsideXChatOverlay,
+    isInsideXChatContext,
     matchesShortcut,
     isFollowListPage,
     getFollowFilterMode,

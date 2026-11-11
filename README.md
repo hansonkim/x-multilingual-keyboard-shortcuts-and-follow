@@ -2,7 +2,7 @@
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.14-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.15-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
 
 Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**, **Non-Follower Filter (`Shift + F`)**, **Confirmation Dialog (`Y` / `N`)**, and **Follower / Following Tab Navigation (`G` `V` / `G` `W` / `G` `O`)** seamlessly in **any input language (IME)** — including Korean, Japanese, Chinese, Russian, Arabic, and full-width layouts — without switching your keyboard back to English.
 

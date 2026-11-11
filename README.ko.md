@@ -2,7 +2,7 @@
 
 **언어 (Languages)**: [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.14-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.15-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
 
 한/영 키를 전환하지 않고 **한국어(한글), 일본어, 중국어 등 모든 다국어 입력 상태(IME)**에서 **X.com(트위터)의 전체 기본 단축키(`?`)**와 **팔로우/언팔로우(`F`)**, **맞팔 안 한 계정 필터(`Shift+F`)**, **확인 모달(`Y`/`N`)**, **팔로워/팔로잉 탭 이동(`G` `V` / `G` `W` / `G` `O`)** 단축키를 바로 사용할 수 있는 Chrome 확장 프로그램입니다.
 

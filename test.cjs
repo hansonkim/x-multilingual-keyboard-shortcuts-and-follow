@@ -9,6 +9,9 @@ const {
   DEFAULT_SHORTCUT,
   isEditable,
   isEditableEvent,
+  shouldSwallowUntrustedShadowEvent,
+  isInsideXChatOverlay,
+  isInsideXChatContext,
   matchesShortcut,
   isFollowListPage,
   getFollowFilterMode,
@@ -1774,8 +1777,8 @@ assert.ok(
     assert.equal(textareaDispatched.length, 0);
     assert.equal(dispatchedEvents.length, 0);
 
-    // 17c. When NO input is focused on /i/chat (e.g. conversation listbox or filter button inside shadowRoot, or document.body),
-    // pressing Korean 'ㅜ' behaves identically to English 'n' and dispatches synthetic 'n'
+    // 17c. Even when NO input is focused inside /i/chat (e.g. user clicked chat message log, conversation listbox, or PIN pad),
+    // pressing Korean 'ㅜ' (KeyN) or single-key tweet shortcuts MUST NOT open Compose Post ('n'), while 'g + h' / '?' navigation still works!
     for (const nonEditableInner of [chatListbox, chatFilterBtn]) {
       xchatShadowRoot.activeElement = nonEditableInner;
       listboxDispatched.length = 0;
@@ -1788,10 +1791,32 @@ assert.ok(
       });
       assert.equal(isEditable(xchatEmbedHost), false);
       assert.equal(isEditableEvent(nonEditEv, xchatDoc), false);
-      assert.equal(handleActionIfMatched(nonEditEv, xchatDoc, false), true);
+      assert.equal(isInsideXChatContext(nonEditEv, xchatDoc), true);
+      assert.equal(
+        handleActionIfMatched(nonEditEv, xchatDoc, false),
+        false,
+        'Korean ㅜ inside XChat must never open Compose Post even when textarea lost focus'
+      );
+      assert.equal(listboxDispatched.length, 0);
+
+      // Global 'g h' navigation still works on /i/chat when no input is focused
+      const gPrefixEv = makeEv({
+        key: 'ㅎ',
+        code: 'KeyG',
+        target: xchatEmbedHost,
+        composedPath: () => [nonEditableInner, xchatShadowRoot, xchatEmbedHost, mockBody, xchatDoc]
+      });
+      const gHomeEv = makeEv({
+        key: 'ㅗ',
+        code: 'KeyH',
+        target: xchatEmbedHost,
+        composedPath: () => [nonEditableInner, xchatShadowRoot, xchatEmbedHost, mockBody, xchatDoc]
+      });
+      assert.equal(handleActionIfMatched(gPrefixEv, xchatDoc, false), true);
+      assert.equal(handleActionIfMatched(gHomeEv, xchatDoc, false), true);
       assert.deepEqual(
         listboxDispatched.map((d) => `${d.type}:${d.key}`),
-        ['keydown:n', 'keypress:n']
+        ['keydown:g', 'keypress:g', 'keydown:h', 'keypress:h']
       );
     }
 
@@ -1820,6 +1845,226 @@ assert.ok(
       1,
       'Cmd+Enter after compositionend must dispatch directly on Shadow DOM TEXTAREA'
     );
+
+    // 17e. Untrusted synthetic shortcut events (isTrusted: false) dispatched onto outer Shadow Host by legacy / co-installed
+    // extensions while a Shadow DOM editable is active MUST be swallowed on keydown, keypress, and keyup,
+    // while synthetic events originating inside the Shadow DOM itself are allowed.
+    xchatShadowRoot.activeElement = dmComposerTextarea;
+    xchatShadowRoot.contains = (node) => node === dmComposerTextarea || node === dmSearchInput;
+    for (const type of ['keydown', 'keypress', 'keyup']) {
+      let prevented = false;
+      let stopped = false;
+      const externalSyntheticEv = {
+        type,
+        key: 'n',
+        code: '',
+        keyCode: type === 'keypress' ? 110 : 78,
+        isTrusted: false,
+        target: xchatEmbedHost,
+        composedPath: () => [xchatEmbedHost, mockBody, xchatDoc],
+        preventDefault() {
+          prevented = true;
+        },
+        stopPropagation() {},
+        stopImmediatePropagation() {
+          stopped = true;
+        }
+      };
+      assert.equal(shouldSwallowUntrustedShadowEvent(externalSyntheticEv, xchatDoc), true);
+      for (const fn of listeners[type] || []) fn(externalSyntheticEv);
+      assert.equal(prevented, true, `External synthetic ${type} on shadow host must preventDefault`);
+      assert.equal(stopped, true, `External synthetic ${type} on shadow host must stopImmediatePropagation`);
+
+      let internalStopped = false;
+      const internalSyntheticEv = {
+        type,
+        key: 'n',
+        code: 'KeyN',
+        keyCode: 78,
+        isTrusted: false,
+        target: xchatEmbedHost,
+        composedPath: () => [dmComposerTextarea, xchatShadowRoot, xchatEmbedHost, mockBody, xchatDoc],
+        preventDefault() {},
+        stopPropagation() {},
+        stopImmediatePropagation() {
+          internalStopped = true;
+        }
+      };
+      assert.equal(shouldSwallowUntrustedShadowEvent(internalSyntheticEv, xchatDoc), false);
+      for (const fn of listeners[type] || []) fn(internalSyntheticEv);
+      assert.equal(internalStopped, false, `Internal shadow DOM ${type} event must not be swallowed`);
+    }
+
+    // 17f. Closed Shadow DOM (chrome.dom.openOrClosedShadowRoot), cross-shadow-boundary [role="combobox"]/[role="textbox"],
+    // EditContext, and <iframe> focus must all be detected as editable / embedded contexts.
+    {
+      const closedInput = {
+        nodeType: 1,
+        tagName: 'DIV',
+        isContentEditable: false,
+        editContext: {},
+        getAttribute: () => null,
+        closest: () => null
+      };
+      const closedShadow = { nodeType: 11, activeElement: closedInput };
+      const closedHost = {
+        nodeType: 1,
+        tagName: 'DIV',
+        shadowRoot: null,
+        getAttribute: () => null,
+        closest: () => null
+      };
+      const prevChrome = globalThis.chrome;
+      globalThis.chrome = {
+        ...(prevChrome || {}),
+        dom: {
+          openOrClosedShadowRoot: (el) => (el === closedHost ? closedShadow : null)
+        }
+      };
+      try {
+        const closedDoc = { body: mockBody, activeElement: closedHost, querySelector: () => null, querySelectorAll: () => [] };
+        const ev = makeEv({ key: 'ㅜ', code: 'KeyN', target: closedHost, composedPath: () => [closedHost, mockBody, closedDoc] });
+        assert.equal(isEditable(closedHost), true, 'Closed shadow host with EditContext activeElement must be editable');
+        assert.equal(isEditableEvent(ev, closedDoc), true);
+        assert.equal(handleActionIfMatched(ev, closedDoc, false), false);
+      } finally {
+        globalThis.chrome = prevChrome;
+      }
+
+      // Cross-shadow-boundary: inner custom element inside outer [role="combobox"] host
+      const comboboxHost = {
+        nodeType: 1,
+        tagName: 'DIV',
+        isContentEditable: false,
+        getAttribute: (k) => (k === 'role' ? 'combobox' : null),
+        closest: () => null
+      };
+      const innerShadow = { nodeType: 11, host: comboboxHost };
+      const innerSpan = {
+        nodeType: 1,
+        tagName: 'SPAN',
+        isContentEditable: false,
+        getAttribute: () => null,
+        closest: () => null,
+        getRootNode: () => innerShadow
+      };
+      innerShadow.activeElement = innerSpan;
+      comboboxHost.shadowRoot = innerShadow;
+      const comboDoc = { body: mockBody, activeElement: comboboxHost, querySelector: () => null, querySelectorAll: () => [] };
+      const comboEv = makeEv({ key: 'ㅜ', code: 'KeyN', target: comboboxHost, composedPath: () => [innerSpan, innerShadow, comboboxHost] });
+      assert.equal(isEditableEvent(comboEv, comboDoc), true, 'Element inside shadow child of [role="combobox"] must be editable');
+
+      // Cross-origin <iframe> focus
+      const crossOriginIframe = {
+        nodeType: 1,
+        tagName: 'IFRAME',
+        get contentDocument() {
+          throw new Error('SecurityError: cross-origin iframe');
+        },
+        getAttribute: () => null,
+        closest: () => null
+      };
+      const iframeDoc = { body: mockBody, activeElement: crossOriginIframe, querySelector: () => null, querySelectorAll: () => [] };
+      const iframeEv = makeEv({ key: 'ㅜ', code: 'KeyN', target: mockBody, composedPath: () => [mockBody, iframeDoc] });
+      assert.equal(isEditableEvent(iframeEv, iframeDoc), true, 'Focused cross-origin IFRAME must suppress parent shortcuts');
+      assert.equal(handleActionIfMatched(iframeEv, iframeDoc, false), false);
+    }
+
+    // 17g. Floating Chat Drawer (xchatEmbedDrawer) & Chat Overlays (xchatEmbedOverlays) on /home and /following:
+    // even when a non-editable element (e.g. 4-digit PIN pad or chat message bubble) is focused inside the drawer,
+    // 1-9 tab switching, J/K cell stepping, F follow, Shift+F filter, ㅜ -> n, and g + h navigation must all be suppressed.
+    {
+      let homeTabClicked = 0;
+      const pinBox = {
+        nodeType: 1,
+        tagName: 'DIV',
+        isContentEditable: false,
+        getAttribute: () => null,
+        closest: () => null
+      };
+      const drawerShadow = { nodeType: 11, activeElement: pinBox };
+      const drawerHost = {
+        nodeType: 1,
+        tagName: 'DIV',
+        shadowRoot: drawerShadow,
+        getAttribute: (k) => (k === 'data-testid' ? 'xchatEmbedDrawer' : null),
+        closest: () => null
+      };
+      const mockHomeTab = { click() { homeTabClicked++; } };
+      const homeWithDrawerDoc = {
+        body: mockBody,
+        documentElement: { nodeType: 1, tagName: 'HTML' },
+        activeElement: drawerHost,
+        querySelector: (sel) =>
+          sel === '[data-testid="primaryColumn"] [role="tablist"]'
+            ? { querySelectorAll: () => [mockHomeTab] }
+            : null,
+        querySelectorAll: () => []
+      };
+      globalThis.location = { pathname: '/home' };
+      assert.equal(isInsideXChatOverlay(null, homeWithDrawerDoc), true);
+      for (const k of [
+        { key: '1', code: 'Digit1' },
+        { key: 'ㅜ', code: 'KeyN' },
+        { key: 'ㅓ', code: 'KeyJ' },
+        { key: 'ㅎ', code: 'KeyG' }
+      ]) {
+        const ev = makeEv({
+          ...k,
+          target: drawerHost,
+          composedPath: () => [pinBox, drawerShadow, drawerHost, mockBody, homeWithDrawerDoc]
+        });
+        assert.equal(handleActionIfMatched(ev, homeWithDrawerDoc, false), false);
+      }
+      assert.equal(homeTabClicked, 0, 'Digits 1-9 inside xchatEmbedDrawer PIN/chat UI must not switch /home tabs');
+    }
+
+    // 17h. Unresolved editable keydown (code: '', key: 'Process', keyCode: 229) where popup input closes before keyup
+    // must NOT trigger the keyup fallback shortcut!
+    {
+      const transientInput = {
+        nodeType: 1,
+        tagName: 'INPUT',
+        isContentEditable: false,
+        getAttribute: () => null,
+        closest: () => null
+      };
+      const transientDoc = {
+        body: mockBody,
+        documentElement: { nodeType: 1, tagName: 'HTML' },
+        activeElement: transientInput,
+        querySelector: () => null,
+        querySelectorAll: () => []
+      };
+      globalThis.document = transientDoc;
+      globalThis.location = { pathname: '/home' };
+      dispatchedEvents.length = 0;
+
+      const kdInPopup = makeEv({
+        key: 'Process',
+        code: '',
+        keyCode: 229,
+        which: 229,
+        isComposing: true,
+        target: transientInput,
+        composedPath: () => [transientInput, mockBody, transientDoc]
+      });
+      for (const fn of listeners.keydown) fn(kdInPopup);
+
+      // Popup closes before keyup arrives -> activeElement becomes document.body!
+      transientDoc.activeElement = mockBody;
+      const kuAfterClose = makeEv({
+        key: 'ㅜ',
+        code: '',
+        keyCode: 78,
+        which: 78,
+        isComposing: false,
+        target: mockBody,
+        composedPath: () => [mockBody, transientDoc]
+      });
+      for (const fn of listeners.keyup) fn(kuAfterClose);
+      assert.equal(dispatchedEvents.length, 0, 'keyup after unresolved editable keydown must not fire shortcut');
+    }
   }
 
   console.log('All assertions passed.');

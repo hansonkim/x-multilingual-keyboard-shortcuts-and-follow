@@ -105,6 +105,7 @@ https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/issues
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.0.15 | 2026-11-11 | Fix shortcuts (such as Korean `ㅜ` → `N` Compose Post) firing in XChat (`/i/chat`, floating chat drawer, and overlays), closed/nested Shadow DOMs, `EditContext`, `[role="combobox"]`, iframes, modal dialogs, and transient IME popups; also block untrusted synthetic shortcut events while Shadow DOM inputs are active. | Draft |
 | 1.0.14 | 2026-11-11 | Extend floating filter bar and Shift+F shortcut to /followers and /verified_followers to show only followers you have not followed back yet | Draft |
 | 1.0.13 | 2026-11-06 | Render the compact floating "Posted" pill label via CSS (`data-xfs-label` + `::before`) instead of overwriting X's React-owned text node, preventing potential timeline render errors. | Draft |
 | 1.0.12 | 2026-11-04 | Fix Windows IME `Ctrl+Enter` / `Cmd+Enter` post submission dropping the last composed syllable by waiting for `compositionend` and Draft.js/React state sync while swallowing premature follow-up `Enter` keydowns. | Draft |
