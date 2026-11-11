@@ -96,6 +96,7 @@ const A_PREFIX_SECOND_CODES = new Set([
 
 const FOLLOW_LIST_PATH_RE = /^\/[^/]+\/(verified_followers|followers|following|followers_you_follow)\/?$/i;
 const FOLLOWING_PATH_RE = /^\/[^/]+\/following\/?$/i;
+const FOLLOWERS_FILTER_PATH_RE = /^\/[^/]+\/(?:verified_followers|followers)\/?$/i;
 const COMPACT_PILL_PATH_RE = /^\/(home|notifications(?:\/.*)?)\/?$/i;
 const STATUS_PATH_RE = /^\/([^/]+)\/status\/\d+/i;
 const MUTUAL_BADGE_TEXT_RE =
@@ -249,8 +250,18 @@ let compactPillDesign = '3';
 let uiLang = null;
 let lastFocusedCellLink = null;
 let lastFocusedFilteredCell = null;
+let lastFocusedRowTop = null;
 let lastPathname = '';
 let pendingPrefix = { key: null, until: 0 };
+
+function syncPathnameState(pathname) {
+  if (typeof pathname === 'string' && lastPathname !== pathname) {
+    lastFocusedCellLink = null;
+    lastFocusedFilteredCell = null;
+    lastFocusedRowTop = null;
+    lastPathname = pathname;
+  }
+}
 
 function setShowUiHints(visible) {
   showUiHints = Boolean(visible);
@@ -387,7 +398,7 @@ function getUserscriptMenuStrings() {
   if (lang === 'ko') {
     return {
       toggleHints: '단축키 힌트 표시/숨기기 (Toggle Shortcut Hints)',
-      toggleNonFollowers: '팔로잉: 맞팔 안 한 계정만 보기 토글 (⇧F)',
+      toggleNonFollowers: '팔로잉·팔로워 미맞팔 계정만 보기 토글 (⇧F)',
       toggleCompactPill: '"게시됨" 플로팅 버튼 최소화 토글 (Toggle Compact Pill)',
       setFollowKey: '팔로우 단축키 변경 (Set Follow Shortcut Key)',
       promptKey: (curr) => `팔로우 단축키를 입력하세요 (현재: ${curr}, 기본값: F):`
@@ -396,7 +407,7 @@ function getUserscriptMenuStrings() {
   if (lang === 'zh') {
     return {
       toggleHints: '显示/隐藏快捷键提示 (Toggle Shortcut Hints)',
-      toggleNonFollowers: '正在关注：切换仅看未回关用户 (⇧F)',
+      toggleNonFollowers: '关注/粉丝列表：切换仅看未互关用户 (⇧F)',
       toggleCompactPill: '切换精简浮动“已发帖”按钮 (Toggle Compact Pill)',
       setFollowKey: '修改关注快捷键 (Set Follow Shortcut Key)',
       promptKey: (curr) => `请输入关注快捷键（当前：${curr}，默认：F）：`
@@ -405,7 +416,7 @@ function getUserscriptMenuStrings() {
   if (lang === 'ja') {
     return {
       toggleHints: 'ショートカットヒント表示切替 (Toggle Shortcut Hints)',
-      toggleNonFollowers: 'フォロー中：片思いのみ表示切替 (⇧F)',
+      toggleNonFollowers: 'フォロー中・フォロワー：未相互のみ表示切替 (⇧F)',
       toggleCompactPill: '「ポスト済」フローティングボタン最小化切替 (Toggle Compact Pill)',
       setFollowKey: 'フォローショートカット変更 (Set Follow Shortcut Key)',
       promptKey: (curr) => `フォロー用ショートカットキーを入力してください（現在: ${curr}、デフォルト: F）:`
@@ -413,7 +424,7 @@ function getUserscriptMenuStrings() {
   }
   return {
     toggleHints: 'Toggle Shortcut Hints',
-    toggleNonFollowers: 'Following: Toggle Non-Followers Only (⇧F)',
+    toggleNonFollowers: 'Following/Followers: Toggle Unreciprocated Only (⇧F)',
     toggleCompactPill: 'Toggle Compact Floating "Posted" Pill',
     setFollowKey: 'Set Follow Shortcut Key',
     promptKey: (curr) => `Enter Follow shortcut key (current: ${curr}, default: F):`
@@ -551,12 +562,28 @@ function isFollowListPage(pathname = typeof location !== 'undefined' ? location.
   return FOLLOW_LIST_PATH_RE.test(pathname);
 }
 
+function getFollowFilterMode(
+  pathname = typeof location !== 'undefined'
+    ? location.pathname
+    : typeof window !== 'undefined' && window.location
+      ? window.location.pathname
+      : ''
+) {
+  if (FOLLOWING_PATH_RE.test(pathname)) return 'following';
+  if (FOLLOWERS_FILTER_PATH_RE.test(pathname)) return 'followers';
+  return null;
+}
+
+function isFollowFilterPage(pathname = typeof location !== 'undefined' ? location.pathname : '') {
+  return Boolean(getFollowFilterMode(pathname));
+}
+
 function isFollowingPage(pathname = typeof location !== 'undefined' ? location.pathname : '') {
   return FOLLOWING_PATH_RE.test(pathname);
 }
 
 function isFollowingFilterActive(pathname = typeof location !== 'undefined' ? location.pathname : '') {
-  return Boolean(filterNonFollowers && isFollowingPage(pathname));
+  return Boolean(filterNonFollowers && isFollowFilterPage(pathname));
 }
 
 function isCompactPillPage(pathname = typeof location !== 'undefined' ? location.pathname : '') {
@@ -591,6 +618,38 @@ function isMutualFollowerCell(cell) {
   }
   mutualCellCache?.set(cell, result);
   return result;
+}
+
+function isFollowerCellFilteredOut(cell, root = typeof document !== 'undefined' ? document : null) {
+  if (!cell) return false;
+  if (cell.querySelector?.('[data-testid$="-follow"]')) return false;
+  if (cell.querySelector?.('[data-testid$="-unfollow"], [data-testid$="-cancel"]')) return true;
+  const profileHref = root
+    ?.querySelector?.('header nav a[data-testid="AppTabBar_Profile_Link"]')
+    ?.getAttribute?.('href');
+  if (profileHref) {
+    const normProfile = profileHref.replace(/\/+$/, '').toLowerCase();
+    const links = cell.querySelectorAll?.('a[href]') || [];
+    for (const link of links) {
+      const href = (link.getAttribute?.('href') || '').replace(/\/+$/, '').toLowerCase();
+      if (href && href === normProfile) return true;
+    }
+  }
+  if (cell.querySelector?.('[data-testid^="UserAvatar-Container-"]')) {
+    return true;
+  }
+  return false;
+}
+
+function shouldFilterOutUserCell(
+  cell,
+  mode = 'following',
+  root = typeof document !== 'undefined' ? document : null
+) {
+  if (!cell || !mode) return false;
+  if (mode === 'following') return isMutualFollowerCell(cell);
+  if (mode === 'followers') return isFollowerCellFilteredOut(cell, root);
+  return false;
 }
 
 function isStatusPage(pathname = typeof location !== 'undefined' ? location.pathname : '') {
@@ -747,23 +806,28 @@ function findTargetUserCell(
   root = document,
   pathname = typeof location !== 'undefined' ? location.pathname : ''
 ) {
-  const filterActive = isFollowingFilterActive(pathname);
+  const filterMode = getFollowFilterMode(pathname);
+  const filterActive = Boolean(filterNonFollowers && filterMode);
   const active = root.activeElement;
   if (active && primary.contains(active)) {
     const closestCell = active.closest?.('[data-testid="UserCell"]');
     if (closestCell && primary.contains(closestCell)) {
-      if (filterActive && isMutualFollowerCell(closestCell)) return null;
+      if (filterActive && shouldFilterOutUserCell(closestCell, filterMode, root)) return null;
       lastFocusedFilteredCell = closestCell;
       lastFocusedCellLink = closestCell.querySelector?.('a[role="link"][tabindex="-1"]') || closestCell;
+      const top = getRowVisualTop(closestCell);
+      if (top !== null) lastFocusedRowTop = top;
       return closestCell;
     }
 
     const innerDiv = active.closest?.('[data-testid="cellInnerDiv"]');
     const innerCell = innerDiv?.querySelector?.('[data-testid="UserCell"]');
     if (innerCell && primary.contains(innerCell)) {
-      if (filterActive && isMutualFollowerCell(innerCell)) return null;
+      if (filterActive && shouldFilterOutUserCell(innerCell, filterMode, root)) return null;
       lastFocusedFilteredCell = innerCell;
       lastFocusedCellLink = innerCell.querySelector?.('a[role="link"][tabindex="-1"]') || innerCell;
+      const top = getRowVisualTop(innerCell);
+      if (top !== null) lastFocusedRowTop = top;
       return innerCell;
     }
   }
@@ -771,7 +835,7 @@ function findTargetUserCell(
   if (
     lastFocusedFilteredCell &&
     primary.contains(lastFocusedFilteredCell) &&
-    (!filterActive || !isMutualFollowerCell(lastFocusedFilteredCell))
+    (!filterActive || !shouldFilterOutUserCell(lastFocusedFilteredCell, filterMode, root))
   ) {
     return lastFocusedFilteredCell;
   }
@@ -783,7 +847,7 @@ function findTargetUserCell(
         .closest?.('[data-testid="cellInnerDiv"]')
         ?.querySelector?.('[data-testid="UserCell"]');
     if (rememberedCell && primary.contains(rememberedCell)) {
-      if (filterActive && isMutualFollowerCell(rememberedCell)) return null;
+      if (filterActive && shouldFilterOutUserCell(rememberedCell, filterMode, root)) return null;
       return rememberedCell;
     }
   }
@@ -791,9 +855,9 @@ function findTargetUserCell(
   return null;
 }
 
-function getFollowingCells(primary, filterActive) {
+function getFollowingCells(primary, filterActive, filterMode = 'following', root = document) {
   const all = Array.from(primary?.querySelectorAll?.('[data-testid="UserCell"]') || []);
-  return filterActive ? all.filter((cell) => !isMutualFollowerCell(cell)) : all;
+  return filterActive ? all.filter((cell) => !shouldFilterOutUserCell(cell, filterMode, root)) : all;
 }
 
 function getStickyHeaderBottom(primary, root = document) {
@@ -853,10 +917,12 @@ function stepFollowingCell(
   root = document,
   pathname = typeof location !== 'undefined' ? location.pathname : ''
 ) {
+  syncPathnameState(pathname);
   const primary = root.querySelector?.('[data-testid="primaryColumn"]');
   if (!primary) return false;
-  const filterActive = isFollowingFilterActive(pathname);
-  const rawCells = getFollowingCells(primary, filterActive);
+  const filterMode = getFollowFilterMode(pathname);
+  const filterActive = Boolean(filterNonFollowers && filterMode);
+  const rawCells = getFollowingCells(primary, filterActive, filterMode || 'following', root);
   const cells = rawCells
     .map((cell, domIdx) => ({ cell, domIdx, top: getRowVisualTop(cell) }))
     .sort((a, b) => {
@@ -882,7 +948,24 @@ function stepFollowingCell(
   let nextIdx = 0;
   if (code === 'KeyJ') {
     if (currentIdx < 0) {
-      nextIdx = 0;
+      if (lastFocusedRowTop !== null) {
+        const byTop = cells.findIndex((c) => {
+          const t = getRowVisualTop(c);
+          return t !== null && t >= lastFocusedRowTop - 2;
+        });
+        if (byTop >= 0) {
+          nextIdx = byTop;
+        } else if (cells.some((c) => getRowVisualTop(c) !== null)) {
+          nextIdx = cells.length - 1;
+          if (typeof window !== 'undefined' && typeof window.scrollBy === 'function') {
+            window.scrollBy(0, 480);
+          }
+        } else {
+          nextIdx = 0;
+        }
+      } else {
+        nextIdx = 0;
+      }
     } else if (currentIdx < cells.length - 1) {
       nextIdx = currentIdx + 1;
       if (currentTop !== null) {
@@ -911,6 +994,15 @@ function stepFollowingCell(
           }
         }
       }
+    } else if (currentIdx < 0 && lastFocusedRowTop !== null) {
+      nextIdx = 0;
+      for (let idx = cells.length - 1; idx >= 0; idx--) {
+        const t = getRowVisualTop(cells[idx]);
+        if (t !== null && t < lastFocusedRowTop - 2) {
+          nextIdx = idx;
+          break;
+        }
+      }
     } else {
       nextIdx = 0;
       if (typeof window !== 'undefined' && typeof window.scrollBy === 'function') {
@@ -936,6 +1028,10 @@ function stepFollowingCell(
   lastFocusedCellLink = focusTarget;
   focusTarget.focus?.({ preventScroll: true });
   alignFollowingCellBelowHeader(targetCell, primary, root);
+  const alignedTop = getRowVisualTop(targetCell);
+  if (alignedTop !== null) {
+    lastFocusedRowTop = alignedTop;
+  }
   try {
     const desc = Object.getOwnPropertyDescriptor(root, 'activeElement');
     if (desc?.writable) {
@@ -1002,11 +1098,7 @@ function findProfileFollowButton(
   root = document,
   pathname = typeof location !== 'undefined' ? location.pathname : ''
 ) {
-  if (lastPathname !== pathname) {
-    lastFocusedCellLink = null;
-    lastFocusedFilteredCell = null;
-    lastPathname = pathname;
-  }
+  syncPathnameState(pathname);
 
   // 0. If a profile HoverCard is currently open, prioritize its Follow / Following button
   const hoverCard = root.querySelector?.('[data-testid="HoverCard"]');
@@ -1323,7 +1415,9 @@ function ensureFilterStyles(root = document) {
     root.head.appendChild(style);
   }
   const css = `
-    .xfs-filter-non-followers [data-testid="cellInnerDiv"]:has([data-testid="userFollowIndicator"], [data-xfs-mutual="true"]) {
+    .xfs-filter-non-followers[data-xfs-filter-mode="following"] [data-testid="cellInnerDiv"]:has([data-testid="userFollowIndicator"], [data-xfs-mutual="true"]),
+    .xfs-filter-non-followers[data-xfs-filter-mode="followers"] [data-testid="cellInnerDiv"]:has([data-testid$="-unfollow"], [data-testid$="-cancel"], [data-xfs-hidden="true"]),
+    .xfs-filter-non-followers [data-testid="cellInnerDiv"][data-xfs-hidden="true"] {
       height: 0 !important;
       min-height: 0 !important;
       padding: 0 !important;
@@ -1331,13 +1425,18 @@ function ensureFilterStyles(root = document) {
       border: 0 !important;
       overflow: hidden !important;
     }
-    .xfs-filter-non-followers [data-testid="cellInnerDiv"]:has([data-testid="userFollowIndicator"], [data-xfs-mutual="true"]) > *,
-    .xfs-filter-non-followers [data-testid="UserCell"]:has([data-testid="userFollowIndicator"]),
-    .xfs-filter-non-followers [data-testid="UserCell"][data-xfs-mutual="true"] {
+    .xfs-filter-non-followers[data-xfs-filter-mode="following"] [data-testid="cellInnerDiv"]:has([data-testid="userFollowIndicator"], [data-xfs-mutual="true"]) > *,
+    .xfs-filter-non-followers[data-xfs-filter-mode="following"] [data-testid="UserCell"]:has([data-testid="userFollowIndicator"]),
+    .xfs-filter-non-followers[data-xfs-filter-mode="following"] [data-testid="UserCell"][data-xfs-mutual="true"],
+    .xfs-filter-non-followers[data-xfs-filter-mode="followers"] [data-testid="cellInnerDiv"]:has([data-testid$="-unfollow"], [data-testid$="-cancel"], [data-xfs-hidden="true"]) > *,
+    .xfs-filter-non-followers[data-xfs-filter-mode="followers"] [data-testid="UserCell"]:has([data-testid$="-unfollow"], [data-testid$="-cancel"]),
+    .xfs-filter-non-followers [data-testid="cellInnerDiv"][data-xfs-hidden="true"] > *,
+    .xfs-filter-non-followers [data-testid="UserCell"][data-xfs-hidden="true"] {
       display: none !important;
     }
     @supports not selector(:has(*)) {
-      .xfs-filter-non-followers [data-testid="cellInnerDiv"].xfs-mutual-row {
+      .xfs-filter-non-followers[data-xfs-filter-mode="following"] [data-testid="cellInnerDiv"].xfs-mutual-row,
+      .xfs-filter-non-followers [data-testid="cellInnerDiv"][data-xfs-hidden="true"] {
         height: 0 !important;
         min-height: 0 !important;
         padding: 0 !important;
@@ -1345,8 +1444,10 @@ function ensureFilterStyles(root = document) {
         border: 0 !important;
         overflow: hidden !important;
       }
-      .xfs-filter-non-followers [data-testid="cellInnerDiv"].xfs-mutual-row > *,
-      .xfs-filter-non-followers [data-testid="UserCell"].xfs-mutual-cell {
+      .xfs-filter-non-followers[data-xfs-filter-mode="following"] [data-testid="cellInnerDiv"].xfs-mutual-row > *,
+      .xfs-filter-non-followers[data-xfs-filter-mode="following"] [data-testid="UserCell"].xfs-mutual-cell,
+      .xfs-filter-non-followers [data-testid="cellInnerDiv"][data-xfs-hidden="true"] > *,
+      .xfs-filter-non-followers [data-testid="UserCell"][data-xfs-hidden="true"] {
         display: none !important;
       }
     }
@@ -1384,6 +1485,10 @@ function ensureFilterStyles(root = document) {
       cursor: pointer;
       user-select: none;
       transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+    }
+    #xfs-non-follower-toggle:focus-visible {
+      outline: 2px solid #1d9bf0;
+      outline-offset: 2px;
     }
     #xfs-non-follower-toggle::before {
       content: "OFF";
@@ -1431,8 +1536,14 @@ function ensureFilterStyles(root = document) {
   }
 }
 
-function formatFollowingFilterLabel(active, lang = detectUiLang()) {
+function formatFollowingFilterLabel(active, lang = detectUiLang(), mode = 'following') {
   const stateText = active ? 'ON' : 'OFF';
+  if (mode === 'followers') {
+    if (lang === 'ko') return `내가 팔로우 안 한 계정만 보기: ${stateText}`;
+    if (lang === 'zh') return `仅看我未回关用户: ${stateText}`;
+    if (lang === 'ja') return `未フォローバックのみ表示: ${stateText}`;
+    return `Not followed back only: ${stateText}`;
+  }
   if (lang === 'ko') return `맞팔 안 한 계정만 보기: ${stateText}`;
   if (lang === 'zh') return `仅看未回关用户: ${stateText}`;
   if (lang === 'ja') return `片思いのみ表示: ${stateText}`;
@@ -1443,19 +1554,22 @@ function syncFollowingFilter(
   root = document,
   pathname = typeof location !== 'undefined' ? location.pathname : ''
 ) {
+  syncPathnameState(pathname);
   if (!root || !root.documentElement) {
     return { total: 0, nonFollowers: 0, mutuals: 0, active: false };
   }
-  const onFollowing = isFollowingPage(pathname);
-  const active = Boolean(onFollowing && filterNonFollowers);
+  const filterMode = getFollowFilterMode(pathname);
+  const active = Boolean(filterMode && filterNonFollowers);
   const primary = root.querySelector?.('[data-testid="primaryColumn"]');
 
-  if (!onFollowing) {
+  if (!filterMode) {
     root.getElementById?.('xfs-following-filter-bar')?.remove?.();
     root.getElementById?.('xfs-filter-styles')?.remove?.();
     root.documentElement.removeAttribute?.('data-xfs-filter-non-followers');
+    root.documentElement.removeAttribute?.('data-xfs-filter-mode');
     primary?.classList?.remove?.('xfs-filter-non-followers');
     primary?.removeAttribute?.('data-xfs-filter-non-followers');
+    primary?.removeAttribute?.('data-xfs-filter-mode');
     for (const el of root.querySelectorAll?.('[data-xfs-mutual="true"], [data-xfs-hidden="true"], [data-xfs-focused="true"]') || []) {
       el.removeAttribute?.('data-xfs-mutual');
       el.removeAttribute?.('data-xfs-hidden');
@@ -1467,6 +1581,12 @@ function syncFollowingFilter(
   }
 
   ensureFilterStyles(root);
+  if (root.documentElement.getAttribute?.('data-xfs-filter-mode') !== filterMode) {
+    root.documentElement.setAttribute?.('data-xfs-filter-mode', filterMode);
+  }
+  if (primary?.getAttribute?.('data-xfs-filter-mode') !== filterMode) {
+    primary?.setAttribute?.('data-xfs-filter-mode', filterMode);
+  }
   if (active) {
     root.documentElement.setAttribute?.('data-xfs-filter-non-followers', 'true');
     primary?.classList?.add?.('xfs-filter-non-followers');
@@ -1485,21 +1605,29 @@ function syncFollowingFilter(
     const focusedCell =
       lastFocusedCellLink.closest?.('[data-testid="UserCell"]') ||
       lastFocusedCellLink.closest?.('[data-testid="cellInnerDiv"]')?.querySelector?.('[data-testid="UserCell"]');
-    if (focusedCell && isMutualFollowerCell(focusedCell)) {
+    if (focusedCell && shouldFilterOutUserCell(focusedCell, filterMode, root)) {
+      if (lastFocusedRowTop === null) {
+        const prevTop = getRowVisualTop(focusedCell);
+        if (prevTop !== null) lastFocusedRowTop = prevTop;
+      }
       lastFocusedCellLink = null;
     }
   }
-  if (active && lastFocusedFilteredCell && isMutualFollowerCell(lastFocusedFilteredCell)) {
+  if (active && lastFocusedFilteredCell && shouldFilterOutUserCell(lastFocusedFilteredCell, filterMode, root)) {
+    if (lastFocusedRowTop === null) {
+      const prevTop = getRowVisualTop(lastFocusedFilteredCell);
+      if (prevTop !== null) lastFocusedRowTop = prevTop;
+    }
     lastFocusedFilteredCell = null;
   }
 
-  const activeCell = onFollowing ? findTargetUserCell(primary, root, pathname) : null;
+  const activeCell = findTargetUserCell(primary, root, pathname);
   const cells = Array.from(primary.querySelectorAll?.('[data-testid="UserCell"]') || []);
   let mutuals = 0;
   for (const cell of cells) {
-    const mutual = isMutualFollowerCell(cell);
+    const filteredOut = shouldFilterOutUserCell(cell, filterMode, root);
     const row = cell.closest?.('[data-testid="cellInnerDiv"]');
-    const isFocusedCell = Boolean(onFollowing && activeCell && cell === activeCell && (!active || !mutual));
+    const isFocusedCell = Boolean(activeCell && cell === activeCell && (!active || !filteredOut));
     if (isFocusedCell) {
       if (cell.getAttribute?.('data-xfs-focused') !== 'true') {
         cell.setAttribute?.('data-xfs-focused', 'true');
@@ -1511,13 +1639,19 @@ function syncFollowingFilter(
       cell.removeAttribute?.('data-xfs-focused');
       row?.removeAttribute?.('data-xfs-focused');
     }
-    if (mutual) {
-      mutuals++;
+    if (filterMode === 'following' && filteredOut) {
       if (cell.getAttribute?.('data-xfs-mutual') !== 'true') {
         cell.setAttribute?.('data-xfs-mutual', 'true');
       }
       cell.classList?.add?.('xfs-mutual-cell');
       row?.classList?.add?.('xfs-mutual-row');
+    } else {
+      cell.removeAttribute?.('data-xfs-mutual');
+      cell.classList?.remove?.('xfs-mutual-cell');
+      row?.classList?.remove?.('xfs-mutual-row');
+    }
+    if (filteredOut) {
+      mutuals++;
       if (active) {
         if (cell.getAttribute?.('data-xfs-hidden') !== 'true') {
           cell.setAttribute?.('data-xfs-hidden', 'true');
@@ -1530,17 +1664,14 @@ function syncFollowingFilter(
         row?.removeAttribute?.('data-xfs-hidden');
       }
     } else {
-      cell.removeAttribute?.('data-xfs-mutual');
       cell.removeAttribute?.('data-xfs-hidden');
-      cell.classList?.remove?.('xfs-mutual-cell');
       row?.removeAttribute?.('data-xfs-hidden');
-      row?.classList?.remove?.('xfs-mutual-row');
     }
   }
 
   const total = cells.length;
   const nonFollowers = total - mutuals;
-  const labelText = formatFollowingFilterLabel(active);
+  const labelText = formatFollowingFilterLabel(active, detectUiLang(root), filterMode);
 
   if (typeof root.createElement === 'function' && (primary.appendChild || primary.insertBefore)) {
     let bar = root.getElementById?.('xfs-following-filter-bar') || primary.querySelector?.('#xfs-following-filter-bar');
@@ -1572,6 +1703,9 @@ function syncFollowingFilter(
     const activeStr = String(active);
     if (bar.getAttribute?.('data-xfs-active') !== activeStr) {
       bar.setAttribute?.('data-xfs-active', activeStr);
+    }
+    if (bar.getAttribute?.('data-xfs-filter-mode') !== filterMode) {
+      bar.setAttribute?.('data-xfs-filter-mode', filterMode);
     }
     if (btn) {
       const hintStr = String(Boolean(showUiHints));
@@ -1928,13 +2062,28 @@ function syncUiHints() {
 }
 
 let uiSyncScheduled = false;
+let uiSyncRafId = null;
+let uiSyncTimerId = null;
 function scheduleUiSync() {
-  if (typeof requestAnimationFrame === 'undefined' || uiSyncScheduled) return;
+  if (typeof requestAnimationFrame !== 'function' || uiSyncScheduled) return;
   uiSyncScheduled = true;
-  requestAnimationFrame(() => {
+  const runSync = () => {
+    if (!uiSyncScheduled) return;
     uiSyncScheduled = false;
+    if (uiSyncRafId !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(uiSyncRafId);
+    }
+    if (uiSyncTimerId !== null && typeof clearTimeout === 'function') {
+      clearTimeout(uiSyncTimerId);
+    }
+    uiSyncRafId = null;
+    uiSyncTimerId = null;
     syncUiHints();
-  });
+  };
+  uiSyncRafId = requestAnimationFrame(runSync);
+  if (typeof setTimeout === 'function') {
+    uiSyncTimerId = setTimeout(runSync, 32);
+  }
 }
 
 function restoreCellFocusIfNeeded() {
@@ -1947,7 +2096,13 @@ function restoreCellFocusIfNeeded() {
         active?.closest?.('[data-testid="cellInnerDiv"]')?.querySelector?.('[data-testid="UserCell"]');
       if (!active || active === document.body || !inCell) {
         if (lastFocusedCellLink?.isConnected) {
-          lastFocusedCellLink.focus?.({ preventScroll: true });
+          const mode = getFollowFilterMode();
+          const cell =
+            lastFocusedCellLink.closest?.('[data-testid="UserCell"]') ||
+            lastFocusedCellLink.closest?.('[data-testid="cellInnerDiv"]')?.querySelector?.('[data-testid="UserCell"]');
+          if (!isFollowingFilterActive() || !cell || !shouldFilterOutUserCell(cell, mode, document)) {
+            lastFocusedCellLink.focus?.({ preventScroll: true });
+          }
         }
       }
       scheduleUiSync();
@@ -2069,6 +2224,9 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
       e.stopImmediatePropagation();
       tabLink.click();
       scheduleUiSync();
+      if (typeof requestAnimationFrame === 'function' && typeof setTimeout === 'function') {
+        setTimeout(scheduleUiSync, 80);
+      }
       return true;
     }
     if (!G_PREFIX_SECOND_CODES.has(code)) return false;
@@ -2140,8 +2298,8 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
     return true;
   }
 
-  // 8b. On /following: step between cells on J / K and align selected cell directly below sticky header + filter bar
-  if ((code === 'KeyJ' || code === 'KeyK') && isFollowingPage()) {
+  // 8b. On /following, /followers, /verified_followers: step between cells on J / K and align selected cell directly below sticky header + filter bar
+  if ((code === 'KeyJ' || code === 'KeyK') && isFollowFilterPage()) {
     if (stepFollowingCell(code, root)) {
       e.preventDefault();
       e.stopPropagation();
@@ -2202,9 +2360,9 @@ function handleActionIfMatched(e, root = document, forceDispatch = false) {
       }
     }
 
-    // 2b. On /following: Shift + F toggles the "Non-followers only" filter in any input language
+    // 2b. On /following, /followers, /verified_followers: Shift + F toggles the follow filter in any input language
     if (
-      isFollowingPage() &&
+      isFollowFilterPage() &&
       !activePrefix &&
       e.shiftKey &&
       !e.ctrlKey &&
@@ -2259,7 +2417,7 @@ function startRepeatTimer(code) {
         clearRepeatTimer();
         return;
       }
-      if (isFollowingPage()) {
+      if (isFollowFilterPage()) {
         stepFollowingCell(code, document);
       } else {
         dispatchNativeSpec(spec, {}, document);
@@ -2373,12 +2531,27 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   });
   window.addEventListener('focusin', scheduleUiSync, true);
   window.addEventListener('mouseover', scheduleUiSync, true);
+  window.addEventListener(
+    'click',
+    () => {
+      scheduleUiSync();
+      if (typeof setTimeout === 'function') {
+        setTimeout(scheduleUiSync, 80);
+      }
+    },
+    true
+  );
   window.addEventListener('popstate', scheduleUiSync);
 
   const attachObserver = () => {
     if (typeof MutationObserver !== 'undefined' && document.documentElement) {
       const observer = new MutationObserver(scheduleUiSync);
-      observer.observe(document.documentElement, { childList: true, subtree: true });
+      observer.observe?.(document.documentElement, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['data-testid']
+      });
     }
     syncUiHints();
     scheduleUiSync();
@@ -2400,9 +2573,13 @@ if (typeof module !== 'undefined') {
     isEditable,
     matchesShortcut,
     isFollowListPage,
+    getFollowFilterMode,
+    isFollowFilterPage,
     isFollowingPage,
     isFollowingFilterActive,
     isMutualFollowerCell,
+    shouldFilterOutUserCell,
+    formatFollowingFilterLabel,
     isStatusPage,
     findConfirmationDialogButton,
     findFollowListTabLink,
@@ -2423,6 +2600,7 @@ if (typeof module !== 'undefined') {
     applyConfigUpdate,
     syncCompactPill,
     syncFollowingFilter,
+    scheduleUiSync,
     syncUiHints
   };
 }

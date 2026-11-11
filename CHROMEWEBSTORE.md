@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — X Multilingual Keyboard Shortcuts & Follow
 
-> Last Updated: 2026-11-07
+> Last Updated: 2026-11-11
 
 ## Store Listing
 
@@ -22,9 +22,9 @@ X Multilingual Keyboard Shortcuts & Follow는 한/영 키를 전환하지 않고
 2. 언팔로우·차단·뮤트 확인 모달 단축키 (Y / N)
    - 언팔로우, 뮤트, 차단 확인 창이 떴을 때 마우스 없이 Y(ㅛ)로 확인, N(ㅜ)으로 취소할 수 있습니다.
 
-3. 팔로워 / 팔로잉 탭 바로 이동 (G V / G W / G O) 및 맞팔 안 한 계정 필터 (Shift + F)
+3. 팔로워 / 팔로잉 탭 바로 이동 (G V / G W / G O) 및 미맞팔·미팔로우 계정 필터 (Shift + F)
    - X.com 어느 화면에서나 G V(인증된 팔로워), G W(팔로워), G O(팔로잉)를 눌러 해당 탭으로 즉시 이동합니다.
-   - 팔로잉(/following) 페이지 상단 고정 필터 버튼을 클릭하거나 Shift + F(Shift + ㄹ)를 누르면 나를 팔로우하지 않는 계정만 필터링하며, J / K 이동 시 숨겨진 맞팔 계정을 자동으로 건너뛰고 선택된 카드를 고정 헤더 아래에 정렬합니다.
+   - 팔로잉(/following), 팔로워(/followers), 인증된 팔로워(/verified_followers) 페이지 상단 고정 플로팅 필터 바를 클릭하거나 Shift + F(Shift + ㄹ)를 누르면 /following에서는 나를 팔로우하지 않는 계정만, /followers 및 /verified_followers에서는 나의 팔로워 중 내가 아직 맞팔로우하지 않은 계정만 필터링하며, J / K 이동 시 숨겨진 계정을 자동으로 건너뛰고 선택된 카드를 고정 헤더 아래에 정렬합니다.
 
 4. 홈 상단 탭 숫자 이동 (1–9 / G + 1–9, 0)
    - 홈(/home) 화면에서 숫자 1–9(또는 G 입력 후 1–9 / 0)를 눌러 추천, 팔로잉, 사용자 리스트 등 상단 탭으로 바로 전환하며, 각 탭 이름 옆에 숫자 단축키 힌트가 표시됩니다.
@@ -105,6 +105,7 @@ https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/issues
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.0.14 | 2026-11-11 | Extend floating filter bar and Shift+F shortcut to /followers and /verified_followers to show only followers you have not followed back yet | Draft |
 | 1.0.13 | 2026-11-06 | Render the compact floating "Posted" pill label via CSS (`data-xfs-label` + `::before`) instead of overwriting X's React-owned text node, preventing potential timeline render errors. | Draft |
 | 1.0.12 | 2026-11-04 | Fix Windows IME `Ctrl+Enter` / `Cmd+Enter` post submission dropping the last composed syllable by waiting for `compositionend` and Draft.js/React state sync while swallowing premature follow-up `Enter` keydowns. | Draft |
 | 1.0.11 | 2026-11-03 | Add tab switching on `/home` with `1`–`9` (or `g` + `1`–`9`/`0`) and show the number hints on the top tabs. | Draft |

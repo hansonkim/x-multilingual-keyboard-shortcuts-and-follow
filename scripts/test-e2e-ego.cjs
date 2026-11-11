@@ -4,22 +4,63 @@ const path = require('node:path');
 
 const rootDir = path.resolve(__dirname, '..');
 const contentJsPath = path.join(rootDir, 'content.js');
+const cliProfileIdx = process.argv.indexOf('--profile');
+const egoProfileName =
+  (cliProfileIdx >= 0 && process.argv[cliProfileIdx + 1]) ||
+  process.env.EGO_PROFILE ||
+  'princejoo';
 
 const egoScript = `
 const fs = await import("node:fs");
+const targetProfile = ${JSON.stringify(egoProfileName)};
 const allProfiles = await profiles();
-const pj = allProfiles.find(p => p.name === "princejoo");
+const pj = allProfiles.find(p => p.name === targetProfile);
 if (!pj) {
-  throw new Error("Required ego-browser profile 'princejoo' not found. Available: " + JSON.stringify(allProfiles));
+  throw new Error("Required ego-browser profile '" + targetProfile + "' not found. Available: " + JSON.stringify(allProfiles));
 }
 
 const spaceName = "e2e-xfs-" + Date.now();
 const task = await taskSpace(spaceName, { profileId: pj.id });
 try {
   const page = task.page("p1");
+  await page.cdp("egoAutomated.disable");
+  await page.cdp("Runtime.enable");
+
+  const neutralizeInstalledExtension = async () => {
+    const evs = await page.events();
+    for (const ev of evs) {
+      if (ev.method !== "Runtime.executionContextCreated") continue;
+      const ctx = ev.params?.context;
+      if (!ctx) continue;
+      if (
+        ctx.origin === "chrome-extension://helbbdgikebbpbjjejmkkappejlhaglf" ||
+        ctx.name === "X Multilingual Keyboard Shortcuts & Follow"
+      ) {
+        try {
+          await page.cdp("Runtime.evaluate", {
+            contextId: ctx.id,
+            expression: [
+              "window.requestAnimationFrame = () => 0;",
+              "window.setTimeout = () => 0;",
+              "window.setInterval = () => 0;",
+              "Object.defineProperty(KeyboardEvent.prototype, \\"code\\", { get: () => \\"\\" });",
+              "Object.defineProperty(KeyboardEvent.prototype, \\"key\\", { get: () => \\"\\" });",
+              "Object.defineProperty(KeyboardEvent.prototype, \\"keyCode\\", { get: () => 0 });",
+              "Object.defineProperty(KeyboardEvent.prototype, \\"which\\", { get: () => 0 });",
+              "document.getElementById(\\"xfs-following-filter-bar\\")?.remove();",
+              "document.getElementById(\\"xfs-filter-styles\\")?.remove();",
+              "document.getElementById(\\"xfs-styles\\")?.remove();"
+            ].join("\\n")
+          });
+        } catch (_) {}
+      }
+    }
+  };
+
   await page.goto("https://x.com/Hanssony_/following");
   await page.waitForSelector("[data-testid=\\"UserCell\\"]", { timeout: 20000 });
   await page.waitForTimeout(1500);
+  await neutralizeInstalledExtension();
 
   const src = fs.readFileSync(${JSON.stringify(contentJsPath)}, "utf8");
   const result = await page.evaluate(async (code) => {
@@ -136,22 +177,76 @@ try {
     await sleep(300);
     const modalClosedAfterN = !document.querySelector("[data-testid=\\"confirmationSheetConfirm\\"]");
 
-    // 7. Test g -> w (Korean ㅎ -> ㅈ) navigation to /followers and g -> o (ㅎ -> ㅐ) back to /following
+    // 7. Test g -> w (/followers), g -> v (/verified_followers), profile root cleanup, and g -> o (/following)
     pressKey("ㅎ", "KeyG");
     await sleep(80);
     pressKey("ㅈ", "KeyW");
-    await sleep(1200);
+    await sleep(1500);
+    window.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await sleep(250);
     const followersPath = location.pathname;
-    const barRemovedOnFollowers = !document.getElementById("xfs-following-filter-bar");
+    const barMountedOnFollowers = Boolean(document.getElementById("xfs-following-filter-bar"));
+    const followersMode = document.documentElement.getAttribute("data-xfs-filter-mode");
+    const followersBtnText = document.getElementById("xfs-non-follower-toggle")?.textContent || "";
+
+    // Toggle ON on /followers and verify -unfollow rows hide while -follow rows stay visible
+    pressKey("ㄹ", "KeyF", { shiftKey: true });
+    await sleep(300);
+    const primaryFollowers = document.querySelector("[data-testid=\\"primaryColumn\\"]");
+    const followersHiddenHeights = Array.from(
+      primaryFollowers?.querySelectorAll("[data-testid=\\"cellInnerDiv\\"]:has([data-testid$=\\"-unfollow\\"], [data-testid$=\\"-cancel\\"])") || []
+    ).map((el) => el.getBoundingClientRect().height);
+    const followersUnfollowedHeights = Array.from(
+      primaryFollowers?.querySelectorAll("[data-testid=\\"cellInnerDiv\\"]:has([data-testid$=\\"-follow\\"])") || []
+    ).map((el) => el.getBoundingClientRect().height);
+
+    // Switch to /verified_followers while filter is ON
+    pressKey("ㅎ", "KeyG");
+    await sleep(80);
+    pressKey("ㅍ", "KeyV");
+    await sleep(1500);
+    window.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await sleep(250);
+    const verifiedFollowersPath = location.pathname;
+    const barMountedOnVerifiedFollowers = Boolean(document.getElementById("xfs-following-filter-bar"));
+    const verifiedFollowersMode = document.documentElement.getAttribute("data-xfs-filter-mode");
+    const verifiedFollowersBtnText = document.getElementById("xfs-non-follower-toggle")?.textContent || "";
+    const primaryVerified = document.querySelector("[data-testid=\\"primaryColumn\\"]");
+    const verifiedHiddenHeights = Array.from(
+      primaryVerified?.querySelectorAll("[data-testid=\\"cellInnerDiv\\"]:has([data-testid$=\\"-unfollow\\"], [data-testid$=\\"-cancel\\"])") || []
+    ).map((el) => el.getBoundingClientRect().height);
+    const verifiedUnfollowedHeights = Array.from(
+      primaryVerified?.querySelectorAll("[data-testid=\\"cellInnerDiv\\"]:has([data-testid$=\\"-follow\\"])") || []
+    ).map((el) => el.getBoundingClientRect().height);
+
+    // Toggle filter back OFF before leaving
+    pressKey("F", "KeyF", { shiftKey: true });
+    await sleep(200);
+
+    // Navigate to profile root (/Hanssony_) and verify bar is removed on non-filter route
+    const profileLink = document.querySelector("header nav a[data-testid=\\"AppTabBar_Profile_Link\\"]");
+    if (profileLink) {
+      profileLink.click();
+    } else {
+      history.pushState({}, "", "/Hanssony_");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    }
+    await sleep(1200);
+    window.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await sleep(250);
+    const nonFilterPath = location.pathname;
+    const barRemovedOnNonFilter = !document.getElementById("xfs-following-filter-bar");
+    const modeRemovedOnNonFilter = document.documentElement.getAttribute("data-xfs-filter-mode") === null;
 
     pressKey("ㅎ", "KeyG");
     await sleep(80);
     pressKey("ㅐ", "KeyO");
-    await sleep(1200);
+    await sleep(1400);
     window.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
     await sleep(250);
     const followingPathAgain = location.pathname;
     const barRestoredOnFollowing = Boolean(document.getElementById("xfs-following-filter-bar"));
+    const followingModeAgain = document.documentElement.getAttribute("data-xfs-filter-mode");
 
     return {
       initialCheck,
@@ -160,9 +255,61 @@ try {
       onSteps,
       afterToggleOff,
       modalCheck: { confirmBtnOpen, cancelBtnOpen, modalClosedAfterN },
-      navCheck: { followersPath, barRemovedOnFollowers, followingPathAgain, barRestoredOnFollowing }
+      navCheck: {
+        followersPath,
+        barMountedOnFollowers,
+        followersMode,
+        followersBtnText,
+        followersHiddenHeights,
+        followersUnfollowedHeights,
+        verifiedFollowersPath,
+        barMountedOnVerifiedFollowers,
+        verifiedFollowersMode,
+        verifiedFollowersBtnText,
+        verifiedHiddenHeights,
+        verifiedUnfollowedHeights,
+        nonFilterPath,
+        barRemovedOnNonFilter,
+        modeRemovedOnNonFilter,
+        followingPathAgain,
+        barRestoredOnFollowing,
+        followingModeAgain
+      }
     };
   }, src);
+
+  // 8. Non-vacuous check on /DonMacKR/followers that unfollowed (-follow) followers remain visible when filter is ON
+  await page.goto("https://x.com/DonMacKR/followers");
+  await page.waitForSelector("[data-testid=\\"UserCell\\"]", { timeout: 20000 });
+  await page.waitForTimeout(1200);
+  await neutralizeInstalledExtension();
+  const unfollowedCheck = await page.evaluate(async (code) => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const pressKey = (key, codeStr, opts = {}) => {
+      const init = { key, code: codeStr, bubbles: true, cancelable: true, ...opts };
+      window.dispatchEvent(new KeyboardEvent("keydown", init));
+      window.dispatchEvent(new KeyboardEvent("keyup", init));
+    };
+    localStorage.setItem("x_follow_shortcut_filter_non_followers", "false");
+    new Function(code)();
+    window.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await sleep(250);
+    pressKey("ㄹ", "KeyF", { shiftKey: true });
+    await sleep(300);
+    const primary = document.querySelector("[data-testid=\\"primaryColumn\\"]");
+    const unfollowedHeights = Array.from(
+      primary?.querySelectorAll("[data-testid=\\"cellInnerDiv\\"]:has([data-testid$=\\"-follow\\"])") || []
+    ).map((el) => el.getBoundingClientRect().height);
+    const hiddenHeights = Array.from(
+      primary?.querySelectorAll("[data-testid=\\"cellInnerDiv\\"]:has([data-testid$=\\"-unfollow\\"], [data-testid$=\\"-cancel\\"])") || []
+    ).map((el) => el.getBoundingClientRect().height);
+    const mode = document.documentElement.getAttribute("data-xfs-filter-mode");
+    const ariaPressed = document.getElementById("xfs-non-follower-toggle")?.getAttribute("aria-pressed");
+    pressKey("F", "KeyF", { shiftKey: true });
+    await sleep(150);
+    return { mode, ariaPressed, unfollowedHeights, hiddenHeights };
+  }, src);
+  result.unfollowedCheck = unfollowedCheck;
 
   console.log("EGO_E2E_RESULT:" + JSON.stringify(result));
 } finally {
@@ -170,7 +317,7 @@ try {
 }
 `;
 
-console.log('Running live E2E browser test in ego-browser (profile: princejoo)...');
+console.log(`Running live E2E browser test in ego-browser (profile: ${egoProfileName})...`);
 const proc = spawnSync('ego-browser', ['nodejs', '-e', egoScript], {
   cwd: rootDir,
   encoding: 'utf8'
@@ -237,10 +384,47 @@ assert.equal(res.modalCheck.confirmBtnOpen, true, 'Pressing ㄹ (F) on focused c
 assert.equal(res.modalCheck.cancelBtnOpen, true, 'Confirmation dialog must have cancel button');
 assert.equal(res.modalCheck.modalClosedAfterN, true, 'Pressing ㅜ (N) must cancel and close the confirmation dialog');
 
-// 7. Follow list tab navigation (g+w / g+o in Korean IME) assertions
+// 7. Follow list tab navigation (/followers, /verified_followers, profile root cleanup, /following) assertions
+const followerLabelRe = /(내가 팔로우 안 한 계정만 보기|Not followed back only|仅看我未回关用户|未フォローバックのみ表示)/;
 assert.equal(/\/followers\/?$/i.test(res.navCheck.followersPath), true, 'ㅎ -> ㅈ (g -> w) must navigate to /followers');
-assert.equal(res.navCheck.barRemovedOnFollowers, true, 'Filter bar must be removed on /followers');
+assert.equal(res.navCheck.barMountedOnFollowers, true, 'Filter bar must stay mounted on /followers');
+assert.equal(res.navCheck.followersMode, 'followers', 'data-xfs-filter-mode must be "followers" on /followers');
+assert.match(res.navCheck.followersBtnText, followerLabelRe, 'Filter button must show follower-mode label on /followers');
+assert.ok(res.navCheck.followersHiddenHeights.length > 0, 'Expected at least one -unfollow/-cancel row on /Hanssony_/followers');
+for (const h of res.navCheck.followersHiddenHeights) {
+  assert.equal(h, 0, 'Already-followed (-unfollow/-cancel) rows on /followers must collapse to height 0');
+}
+for (const h of res.navCheck.followersUnfollowedHeights) {
+  assert.ok(h > 0, 'Unfollowed (-follow) rows on /followers must remain visible');
+}
+
+assert.equal(/\/verified_followers\/?$/i.test(res.navCheck.verifiedFollowersPath), true, 'ㅎ -> ㅍ (g -> v) must navigate to /verified_followers');
+assert.equal(res.navCheck.barMountedOnVerifiedFollowers, true, 'Filter bar must stay mounted on /verified_followers');
+assert.equal(res.navCheck.verifiedFollowersMode, 'followers', 'data-xfs-filter-mode must be "followers" on /verified_followers');
+assert.match(res.navCheck.verifiedFollowersBtnText, followerLabelRe, 'Filter button must show follower-mode label on /verified_followers');
+assert.ok(res.navCheck.verifiedHiddenHeights.length > 0, 'Expected at least one -unfollow/-cancel row on /Hanssony_/verified_followers');
+for (const h of res.navCheck.verifiedHiddenHeights) {
+  assert.equal(h, 0, 'Already-followed (-unfollow/-cancel) rows on /verified_followers must collapse to height 0');
+}
+for (const h of res.navCheck.verifiedUnfollowedHeights) {
+  assert.ok(h > 0, 'Unfollowed (-follow) rows on /verified_followers must remain visible');
+}
+
+assert.equal(res.navCheck.barRemovedOnNonFilter, true, 'Filter bar must be removed on profile root / non-filter route');
+assert.equal(res.navCheck.modeRemovedOnNonFilter, true, 'data-xfs-filter-mode must be removed on non-filter route');
 assert.equal(/\/following\/?$/i.test(res.navCheck.followingPathAgain), true, 'ㅎ -> ㅐ (g -> o) must navigate back to /following');
 assert.equal(res.navCheck.barRestoredOnFollowing, true, 'Filter bar must be restored when returning to /following');
+assert.equal(res.navCheck.followingModeAgain, 'following', 'data-xfs-filter-mode must be "following" on /following');
 
-console.log('E2E ego-browser (princejoo profile) assertions passed.');
+// 8. Non-vacuous unfollowed (-follow) visibility check on /DonMacKR/followers
+assert.equal(res.unfollowedCheck.mode, 'followers');
+assert.equal(res.unfollowedCheck.ariaPressed, 'true');
+assert.ok(res.unfollowedCheck.unfollowedHeights.length > 0, 'Expected at least one unfollowed (-follow) row on /DonMacKR/followers');
+for (const h of res.unfollowedCheck.unfollowedHeights) {
+  assert.ok(h > 0, 'Unfollowed (-follow) rows on /DonMacKR/followers must remain visible');
+}
+for (const h of res.unfollowedCheck.hiddenHeights) {
+  assert.equal(h, 0, 'Already-followed (-unfollow/-cancel) rows on /DonMacKR/followers must collapse to height 0');
+}
+
+console.log(`E2E ego-browser (${egoProfileName} profile) assertions passed.`);

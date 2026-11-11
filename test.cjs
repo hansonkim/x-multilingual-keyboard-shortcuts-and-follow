@@ -10,8 +10,13 @@ const {
   isEditable,
   matchesShortcut,
   isFollowListPage,
+  getFollowFilterMode,
+  isFollowFilterPage,
   isFollowingPage,
+  isFollowingFilterActive,
   isMutualFollowerCell,
+  shouldFilterOutUserCell,
+  formatFollowingFilterLabel,
   isStatusPage,
   findConfirmationDialogButton,
   findProfileFollowButton,
@@ -30,6 +35,7 @@ const {
   applyConfigUpdate,
   syncCompactPill,
   syncFollowingFilter,
+  scheduleUiSync,
   syncUiHints
 } = require('./content.js');
 
@@ -943,14 +949,383 @@ setFilterNonFollowers(true);
 followingDoc.activeElement = fUser2.link;
 assert.equal(findProfileFollowButton(followingDoc, '/Hanssony_/following'), null);
 
-// Leaving /following cleans up filter bar and hidden attributes
-const statsFollowers = syncFollowingFilter(followingDoc, '/Hanssony_/followers');
-assert.equal(statsFollowers.active, false);
+// Leaving filter pages (e.g. profile root /Hanssony_ or /home) cleans up filter bar and hidden attributes
+const statsProfileRoot = syncFollowingFilter(followingDoc, '/Hanssony_');
+assert.equal(statsProfileRoot.active, false);
 assert.equal(filterBarEl, null);
+assert.equal(followingDoc.documentElement.getAttribute('data-xfs-filter-mode'), null);
+assert.equal(filterPrimary.getAttribute('data-xfs-filter-mode'), null);
 assert.equal(fUser2.cell.getAttribute('data-xfs-hidden'), null);
 assert.equal(filterSection.style.marginTop, '');
 
 setFilterNonFollowers(false);
+
+// 14c. Followers & Verified Followers (/followers, /verified_followers) unfollowed-followers filter
+assert.equal(getFollowFilterMode('/Hanssony_/following'), 'following');
+assert.equal(getFollowFilterMode('/Hanssony_/following/'), 'following');
+assert.equal(getFollowFilterMode('/Hanssony_/followers'), 'followers');
+assert.equal(getFollowFilterMode('/Hanssony_/followers/'), 'followers');
+assert.equal(getFollowFilterMode('/Hanssony_/verified_followers'), 'followers');
+assert.equal(getFollowFilterMode('/Hanssony_/verified_followers/'), 'followers');
+assert.equal(getFollowFilterMode('/Hanssony_/followers_you_follow'), null);
+assert.equal(getFollowFilterMode('/Hanssony_'), null);
+assert.equal(getFollowFilterMode('/home'), null);
+
+assert.equal(isFollowFilterPage('/Hanssony_/following'), true);
+assert.equal(isFollowFilterPage('/Hanssony_/followers'), true);
+assert.equal(isFollowFilterPage('/Hanssony_/verified_followers'), true);
+assert.equal(isFollowFilterPage('/Hanssony_'), false);
+
+// Verify localized labels for both 'following' and 'followers' modes
+assert.equal(formatFollowingFilterLabel(false, 'ko', 'following'), '맞팔 안 한 계정만 보기: OFF');
+assert.equal(formatFollowingFilterLabel(true, 'ko', 'following'), '맞팔 안 한 계정만 보기: ON');
+assert.equal(formatFollowingFilterLabel(false, 'ko', 'followers'), '내가 팔로우 안 한 계정만 보기: OFF');
+assert.equal(formatFollowingFilterLabel(true, 'ko', 'followers'), '내가 팔로우 안 한 계정만 보기: ON');
+assert.equal(formatFollowingFilterLabel(true, 'en', 'followers'), 'Not followed back only: ON');
+assert.equal(formatFollowingFilterLabel(true, 'zh', 'followers'), '仅看我未回关用户: ON');
+assert.equal(formatFollowingFilterLabel(true, 'ja', 'followers'), '未フォローバックのみ表示: ON');
+
+function createFollowerModeCell(id, state, opts = {}) {
+  // state: 'follow' | 'unfollow' | 'cancel' | 'self' | 'skeleton'
+  let btnState = state;
+  const cellAttrs = new Map();
+  const rowAttrs = new Map();
+  const cellClasses = new Set();
+  const rowClasses = new Set();
+  const btn = makeMockFollowBtn(`${id}-btn`);
+  const updateBtnTestId = (st) => {
+    btnState = st;
+    if (st === 'follow') btn.setAttribute('data-testid', `${id}-follow`);
+    else if (st === 'unfollow') btn.setAttribute('data-testid', `${id}-unfollow`);
+    else if (st === 'cancel') btn.setAttribute('data-testid', `${id}-cancel`);
+    else btn.removeAttribute('data-testid');
+  };
+  updateBtnTestId(state);
+
+  let row;
+  const link = {
+    id: `${id}-link`,
+    isConnected: true,
+    focus() {},
+    getAttribute: (k) => (k === 'href' ? (opts.href || `/${id}`) : null),
+    closest(sel) {
+      if (sel === '[data-testid="UserCell"]') return cell;
+      if (sel === '[data-testid="cellInnerDiv"]') return row;
+      return null;
+    }
+  };
+  const cell = {
+    id,
+    getAttribute: (k) => cellAttrs.get(k) ?? null,
+    setAttribute: (k, v) => cellAttrs.set(k, String(v)),
+    removeAttribute: (k) => cellAttrs.delete(k),
+    classList: {
+      add: (c) => cellClasses.add(c),
+      remove: (c) => cellClasses.delete(c),
+      contains: (c) => cellClasses.has(c)
+    },
+    closest: (sel) => (sel === '[data-testid="cellInnerDiv"]' ? row : null),
+    scrollIntoView() {},
+    querySelector(sel) {
+      // Every follower on /followers and /verified_followers has userFollowIndicator!
+      if (sel === '[data-testid="userFollowIndicator"]') {
+        return opts.hasFollowsYouBadge === false ? null : {};
+      }
+      if (sel === '[data-testid$="-follow"]') {
+        return btnState === 'follow' ? btn : null;
+      }
+      if (sel === '[data-testid$="-unfollow"], [data-testid$="-cancel"]') {
+        return btnState === 'unfollow' || btnState === 'cancel' ? btn : null;
+      }
+      if (sel === '[data-testid^="UserAvatar-Container-"]') {
+        return btnState === 'skeleton' ? null : {};
+      }
+      if (sel === 'a[role="link"][tabindex="-1"]') return link;
+      if (sel.includes('-follow') || sel.includes('-unfollow')) {
+        return btnState === 'follow' || btnState === 'unfollow' ? btn : null;
+      }
+      return null;
+    },
+    querySelectorAll(sel) {
+      if (sel === 'a[href]') return btnState === 'skeleton' ? [] : [link];
+      return [];
+    }
+  };
+  row = {
+    id: `${id}-row`,
+    getAttribute: (k) => rowAttrs.get(k) ?? null,
+    setAttribute: (k, v) => rowAttrs.set(k, String(v)),
+    removeAttribute: (k) => rowAttrs.delete(k),
+    classList: {
+      add: (c) => rowClasses.add(c),
+      remove: (c) => rowClasses.delete(c),
+      contains: (c) => rowClasses.has(c)
+    },
+    querySelector: (sel) => (sel === '[data-testid="UserCell"]' ? cell : null)
+  };
+  return { cell, row, link, btn, setBtnState: updateBtnTestId };
+}
+
+const flw1 = createFollowerModeCell('123', 'follow'); // unfollowed follower -> VISIBLE
+const flw2 = createFollowerModeCell('456', 'unfollow'); // already followed back -> HIDDEN
+const flw3 = createFollowerModeCell('789', 'cancel'); // pending protected request -> HIDDEN
+const flwSelf = createFollowerModeCell('self', 'self', { href: '/Hanssony_', hasFollowsYouBadge: false }); // self-card -> HIDDEN
+const flw4 = createFollowerModeCell('901', 'follow'); // unfollowed follower -> VISIBLE
+const flw5 = createFollowerModeCell('902', 'follow'); // unfollowed follower -> VISIBLE
+const flwSkeleton = createFollowerModeCell('skel', 'skeleton', { hasFollowsYouBadge: false }); // unrendered skeleton -> NOT hidden
+
+let flw1Top = 161;
+let flw2Top = 261;
+let flw3Top = 351;
+let flwSelfTop = 441;
+let flw4Top = 531;
+let flw5Top = 631;
+let flwSkelTop = 731;
+flw1.row.getBoundingClientRect = () => ({ top: flw1Top, bottom: flw1Top + 100, height: flw1.row.getAttribute('data-xfs-hidden') === 'true' ? 0 : 100 });
+flw2.row.getBoundingClientRect = () => ({ top: flw2Top, bottom: flw2Top + 90, height: flw2.row.getAttribute('data-xfs-hidden') === 'true' ? 0 : 90 });
+flw3.row.getBoundingClientRect = () => ({ top: flw3Top, bottom: flw3Top + 90, height: flw3.row.getAttribute('data-xfs-hidden') === 'true' ? 0 : 90 });
+flwSelf.row.getBoundingClientRect = () => ({ top: flwSelfTop, bottom: flwSelfTop + 90, height: flwSelf.row.getAttribute('data-xfs-hidden') === 'true' ? 0 : 90 });
+flw4.row.getBoundingClientRect = () => ({ top: flw4Top, bottom: flw4Top + 100, height: flw4.row.getAttribute('data-xfs-hidden') === 'true' ? 0 : 100 });
+flw5.row.getBoundingClientRect = () => ({ top: flw5Top, bottom: flw5Top + 100, height: flw5.row.getAttribute('data-xfs-hidden') === 'true' ? 0 : 100 });
+flwSkeleton.row.getBoundingClientRect = () => ({ top: flwSkelTop, bottom: flwSkelTop + 80, height: 80 });
+
+let currentFlwCells = [flw1.cell, flw2.cell, flw3.cell, flwSelf.cell, flw4.cell, flw5.cell, flwSkeleton.cell];
+const allFlwNodes = new Set([
+  flw1.cell, flw1.row, flw1.link,
+  flw2.cell, flw2.row, flw2.link,
+  flw3.cell, flw3.row, flw3.link,
+  flwSelf.cell, flwSelf.row, flwSelf.link,
+  flw4.cell, flw4.row, flw4.link,
+  flw5.cell, flw5.row, flw5.link,
+  flwSkeleton.cell, flwSkeleton.row, flwSkeleton.link
+]);
+
+let flwStyleEl = null;
+let flwBarEl = null;
+let flwBtnEl = null;
+const flwNavWrapper = { id: 'flw-nav-wrapper', nextSibling: null };
+const flwNavParent = {
+  insertBefore(el) {
+    flwBarEl = el;
+    el.parentNode = flwNavParent;
+    el.previousSibling = flwNavWrapper;
+  }
+};
+flwNavWrapper.parentNode = flwNavParent;
+const flwNav = { parentNode: flwNavWrapper };
+const flwTablist = {
+  closest: (sel) => (sel.includes('nav') ? flwNav : null)
+};
+const flwPrimaryAttrs = new Map();
+const flwPrimaryClasses = new Set();
+const flwPrimary = {
+  contains: (node) => allFlwNodes.has(node),
+  getAttribute: (k) => flwPrimaryAttrs.get(k) ?? null,
+  setAttribute: (k, v) => flwPrimaryAttrs.set(k, String(v)),
+  removeAttribute: (k) => flwPrimaryAttrs.delete(k),
+  classList: {
+    add: (c) => flwPrimaryClasses.add(c),
+    remove: (c) => flwPrimaryClasses.delete(c),
+    contains: (c) => flwPrimaryClasses.has(c)
+  },
+  insertBefore(el) { flwBarEl = el; },
+  appendChild(el) { flwBarEl = el; },
+  querySelector(sel) {
+    if (sel === '#xfs-following-filter-bar') return flwBarEl;
+    if (sel === '[role="tablist"]') return flwTablist;
+    return null;
+  },
+  querySelectorAll(sel) {
+    if (sel === '[data-testid="UserCell"]') return currentFlwCells;
+    return [];
+  }
+};
+
+const flwDocAttrs = new Map();
+const followersDoc = {
+  body: mockBody,
+  activeElement: null,
+  documentElement: {
+    lang: 'ko',
+    style: { setProperty() {} },
+    getAttribute: (k) => flwDocAttrs.get(k) ?? null,
+    setAttribute: (k, v) => flwDocAttrs.set(k, String(v)),
+    removeAttribute: (k) => flwDocAttrs.delete(k)
+  },
+  head: {
+    appendChild(el) {
+      if (el.id === 'xfs-filter-styles') flwStyleEl = el;
+    }
+  },
+  getElementById(id) {
+    if (id === 'xfs-filter-styles') return flwStyleEl;
+    if (id === 'xfs-following-filter-bar') return flwBarEl;
+    if (id === 'xfs-non-follower-toggle') return flwBtnEl;
+    return null;
+  },
+  createElement(tag) {
+    const attrs = new Map();
+    const el = {
+      tagName: tag.toUpperCase(),
+      id: '',
+      textContent: '',
+      getAttribute: (k) => attrs.get(k) ?? null,
+      setAttribute: (k, v) => attrs.set(k, String(v)),
+      removeAttribute: (k) => attrs.delete(k),
+      addEventListener(type, fn) {
+        if (type === 'click') el.onClick = fn;
+      },
+      appendChild(child) {
+        if (child.id === 'xfs-non-follower-toggle') flwBtnEl = child;
+      },
+      getBoundingClientRect() {
+        return { top: 107, bottom: 161, height: 54 };
+      },
+      remove() {
+        if (el === flwBarEl) flwBarEl = null;
+        if (el === flwStyleEl) flwStyleEl = null;
+      }
+    };
+    return el;
+  },
+  querySelector(sel) {
+    if (sel === '[data-testid="primaryColumn"]') return flwPrimary;
+    if (sel === 'header nav a[data-testid="AppTabBar_Profile_Link"]') {
+      return { getAttribute: (k) => (k === 'href' ? '/Hanssony_' : null) };
+    }
+    return null;
+  },
+  querySelectorAll(sel) {
+    if (sel.includes('data-xfs-hidden')) {
+      return [
+        flw1.cell, flw1.row, flw2.cell, flw2.row, flw3.cell, flw3.row,
+        flwSelf.cell, flwSelf.row, flw4.cell, flw4.row, flw5.cell, flw5.row
+      ].filter((n) => n.getAttribute('data-xfs-hidden') === 'true' || n.getAttribute('data-xfs-focused') === 'true');
+    }
+    return [];
+  }
+};
+
+globalThis.window = {
+  scrollBy(x, y) {
+    flw1Top -= y;
+    flw2Top -= y;
+    flw3Top -= y;
+    flwSelfTop -= y;
+    flw4Top -= y;
+    flw5Top -= y;
+    flwSkelTop -= y;
+  }
+};
+
+// 1) Seamless SPA tab switch (/following -> /followers -> /verified_followers) updates mode & label in-place without tearing down bar
+globalThis.document = followersDoc;
+globalThis.location = { pathname: '/Hanssony_/following' };
+setFilterNonFollowers(false);
+syncFollowingFilter(followersDoc, '/Hanssony_/following');
+const mountedBarRef = flwBarEl;
+assert.ok(mountedBarRef, 'Filter bar mounts on /following');
+assert.equal(followersDoc.documentElement.getAttribute('data-xfs-filter-mode'), 'following');
+assert.equal(flwPrimary.getAttribute('data-xfs-filter-mode'), 'following');
+assert.equal(flwBtnEl.textContent, '맞팔 안 한 계정만 보기: OFF');
+
+// Verify mode-scoped CSS rules: userFollowIndicator is strictly scoped to [data-xfs-filter-mode="following"] and :focus-visible is present
+assert.ok(flwStyleEl && flwStyleEl.textContent.includes('.xfs-filter-non-followers[data-xfs-filter-mode="following"] [data-testid="cellInnerDiv"]:has([data-testid="userFollowIndicator"]'));
+assert.ok(!flwStyleEl.textContent.includes('.xfs-filter-non-followers [data-testid="cellInnerDiv"]:has([data-testid="userFollowIndicator"]'));
+assert.ok(flwStyleEl.textContent.includes('.xfs-filter-non-followers[data-xfs-filter-mode="followers"] [data-testid="cellInnerDiv"]:has([data-testid$="-unfollow"], [data-testid$="-cancel"], [data-xfs-hidden="true"])'));
+assert.ok(flwStyleEl.textContent.includes('#xfs-non-follower-toggle:focus-visible'));
+
+globalThis.location = { pathname: '/Hanssony_/followers' };
+const statsFlwOff = syncFollowingFilter(followersDoc, '/Hanssony_/followers');
+assert.equal(flwBarEl, mountedBarRef, 'Sticky filter bar must stay mounted across SPA switch to /followers');
+assert.equal(followersDoc.documentElement.getAttribute('data-xfs-filter-mode'), 'followers');
+assert.equal(flwPrimary.getAttribute('data-xfs-filter-mode'), 'followers');
+assert.equal(flwBtnEl.textContent, '내가 팔로우 안 한 계정만 보기: OFF');
+assert.deepEqual(statsFlwOff, { total: 7, nonFollowers: 4, mutuals: 3, active: false });
+
+followersDoc.documentElement.lang = 'en';
+globalThis.location = { pathname: '/Hanssony_/verified_followers' };
+syncFollowingFilter(followersDoc, '/Hanssony_/verified_followers');
+assert.equal(flwBarEl, mountedBarRef, 'Sticky filter bar must stay mounted across SPA switch to /verified_followers');
+assert.equal(followersDoc.documentElement.getAttribute('data-xfs-filter-mode'), 'followers');
+assert.equal(flwBtnEl.textContent, 'Not followed back only: OFF');
+followersDoc.documentElement.lang = 'ko';
+
+// 2 & 3) Shift+F toggles filter ON on /verified_followers and /followers; -follow cells (with userFollowIndicator) stay VISIBLE while -unfollow, -cancel, and self-card are HIDDEN
+assert.equal(
+  handleActionIfMatched(makeEv({ key: 'F', code: 'KeyF', shiftKey: true }), followersDoc, false),
+  true
+);
+assert.equal(getFilterNonFollowers(), true);
+assert.equal(isFollowingFilterActive('/Hanssony_/verified_followers'), true);
+assert.equal(isFollowingFilterActive('/Hanssony_/followers'), true);
+assert.equal(flwBtnEl.getAttribute('aria-pressed'), 'true');
+assert.equal(flwBtnEl.textContent, '내가 팔로우 안 한 계정만 보기: ON');
+
+globalThis.location = { pathname: '/Hanssony_/followers' };
+syncFollowingFilter(followersDoc, '/Hanssony_/followers');
+assert.equal(flw1.cell.getAttribute('data-xfs-hidden'), null, 'Unfollowed follower (123-follow + userFollowIndicator) must remain VISIBLE');
+assert.equal(flw1.cell.getAttribute('data-xfs-mutual'), null, 'userFollowIndicator must NOT mark follower cell as mutual in followers mode');
+assert.equal(flw2.cell.getAttribute('data-xfs-hidden'), 'true', 'Followed-back follower (456-unfollow) must be HIDDEN');
+assert.equal(flw2.row.getAttribute('data-xfs-hidden'), 'true');
+assert.equal(flw3.cell.getAttribute('data-xfs-hidden'), 'true', 'Pending request follower (789-cancel) must be HIDDEN');
+assert.equal(flwSelf.cell.getAttribute('data-xfs-hidden'), 'true', 'Logged-in user self-card must be HIDDEN');
+assert.equal(flw4.cell.getAttribute('data-xfs-hidden'), null, 'Unfollowed follower flw4 must remain VISIBLE');
+assert.equal(flw5.cell.getAttribute('data-xfs-hidden'), null, 'Unfollowed follower flw5 must remain VISIBLE');
+assert.equal(flwSkeleton.cell.getAttribute('data-xfs-hidden'), null, 'Unrendered skeleton cell must not be falsely hidden');
+
+// Remove skeleton cell before J/K navigation test
+currentFlwCells = [flw1.cell, flw2.cell, flw3.cell, flwSelf.cell, flw4.cell, flw5.cell];
+
+// 4) J/K skips hidden (-unfollow / -cancel / self) follower cells, aligns below sticky bar (161px), and preserves scroll continuity after pressing F to follow back!
+followersDoc.activeElement = null;
+assert.equal(handleActionIfMatched(makeEv({ key: 'j', code: 'KeyJ' }), followersDoc, false), true);
+assert.equal(followersDoc.activeElement, flw1.link, 'First J focuses flw1');
+assert.equal(flw1.row.getBoundingClientRect().top, 161);
+
+// Next J skips flw2 (-unfollow), flw3 (-cancel), and flwSelf, landing directly on flw4!
+assert.equal(handleActionIfMatched(makeEv({ key: 'ㅓ', code: 'KeyJ' }), followersDoc, false), true);
+assert.equal(followersDoc.activeElement, flw4.link, 'Second J skips hidden cells and focuses flw4');
+assert.equal(flw4.row.getBoundingClientRect().top, 161, 'flw4 aligns flush below sticky filter bar (161px)');
+assert.equal(flw4.cell.getAttribute('data-xfs-focused'), 'true');
+assert.equal(findProfileFollowButton(followersDoc, '/Hanssony_/followers'), flw4.btn);
+
+// Simulate pressing F on flw4 to follow back: button mutates in-place from 901-follow -> 901-unfollow (and flw5 shifts up in layout)
+flw4.setBtnState('unfollow');
+flw5Top = 161; // layout collapses flw4 to height 0 so flw5 shifts up to 161px while flw1 is scrolled above at -209px
+assert.equal(shouldFilterOutUserCell(flw4.cell, 'followers', followersDoc), true, 'Follower cell state must not be cached in WeakMap after -follow -> -unfollow mutation');
+syncFollowingFilter(followersDoc, '/Hanssony_/followers');
+assert.equal(flw4.cell.getAttribute('data-xfs-hidden'), 'true', 'Newly followed flw4 immediately hides on re-sync');
+assert.equal(flw4.cell.getAttribute('data-xfs-focused'), null);
+
+// Pressing J now MUST continue forward to flw5 (whose top >= lastFocusedRowTop - 2) instead of resetting to index 0 (flw1 above viewport)!
+assert.equal(handleActionIfMatched(makeEv({ key: 'j', code: 'KeyJ' }), followersDoc, false), true);
+assert.equal(followersDoc.activeElement, flw5.link, 'After following flw4, pressing J must continue to flw5 instead of jumping back to index 0 (flw1)');
+assert.equal(flw5.row.getBoundingClientRect().top, 161);
+
+// Pressing K from flw5 skips hidden flw4/flwSelf/flw3/flw2 and returns to flw1
+assert.equal(handleActionIfMatched(makeEv({ key: 'k', code: 'KeyK' }), followersDoc, false), true);
+assert.equal(followersDoc.activeElement, flw1.link, 'Pressing K from flw5 skips hidden cells back to flw1');
+assert.equal(flw1.row.getBoundingClientRect().top, 161);
+
+// Shift+ㄹ toggles filter OFF on /followers and cleans up data-xfs-hidden while keeping bar mounted
+assert.equal(
+  handleActionIfMatched(makeEv({ key: 'ㄹ', code: 'KeyF', shiftKey: true }), followersDoc, false),
+  true
+);
+assert.equal(getFilterNonFollowers(), false);
+assert.equal(flwBtnEl.getAttribute('aria-pressed'), 'false');
+assert.equal(flwBtnEl.textContent, '내가 팔로우 안 한 계정만 보기: OFF');
+assert.equal(flw2.cell.getAttribute('data-xfs-hidden'), null);
+assert.equal(flw4.cell.getAttribute('data-xfs-hidden'), null);
+assert.ok(flwBarEl, 'Filter bar stays mounted when toggled OFF on /followers');
+
+// Navigating to /home removes filter bar and styles
+globalThis.location = { pathname: '/home' };
+syncFollowingFilter(followersDoc, '/home');
+assert.equal(flwBarEl, null);
+assert.equal(flwStyleEl, null);
+assert.equal(followersDoc.documentElement.getAttribute('data-xfs-filter-mode'), null);
 
 // 15. Compact floating "게시됨" pill on /home and /notifications* (default On, toggle On/Off, 3 designs)
 assert.equal(getCompactNewPostsPill(), true, 'Compact floating pill must default to On (true)');
@@ -1201,6 +1576,28 @@ assert.ok(
   assert.equal(sent.length, 0, 'fallback must be cancelled once compositionend arrives');
   await new Promise((r) => setTimeout(r, 40));
   assert.equal(sent.filter((ev) => ev.type === 'keydown').length, 1, 'sent exactly once after late compositionend');
+
+  // scheduleUiSync setTimeout fallback when requestAnimationFrame is paused/throttled (occluded/background tab)
+  let cancelledRafId = null;
+  globalThis.requestAnimationFrame = () => 777; // stalled rAF that never invokes its callback
+  globalThis.cancelAnimationFrame = (id) => { cancelledRafId = id; };
+  try {
+    globalThis.document = followersDoc;
+    globalThis.location = { pathname: '/Hanssony_/following' };
+    syncFollowingFilter(followersDoc, '/Hanssony_/following');
+    assert.equal(followersDoc.documentElement.getAttribute('data-xfs-filter-mode'), 'following');
+
+    // Simulate SPA route switch to /Hanssony_/followers while rAF is stalled
+    globalThis.location = { pathname: '/Hanssony_/followers' };
+    scheduleUiSync();
+    await new Promise((r) => setTimeout(r, 55));
+    assert.equal(cancelledRafId, 777, 'setTimeout fallback must cancel stalled rAF id');
+    assert.equal(followersDoc.documentElement.getAttribute('data-xfs-filter-mode'), 'followers', 'setTimeout fallback must update filter mode when rAF is throttled');
+    assert.equal(flwBtnEl.textContent, '내가 팔로우 안 한 계정만 보기: OFF');
+  } finally {
+    delete globalThis.requestAnimationFrame;
+    delete globalThis.cancelAnimationFrame;
+  }
 
   console.log('All assertions passed.');
 })().catch((err) => {

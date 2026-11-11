@@ -68,7 +68,7 @@ jobs:
                 "### Safari (macOS / iOS) — Userscript",
                 "1. Install a Userscript extension for Safari such as [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) (free, open-source) or [Stay](https://apps.apple.com/app/stay-for-safari/id1591620171) / Tampermonkey.",
                 "2. Download **`x-multilingual-keyboard-shortcuts-and-follow.user.js`** (or `x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip`) from the Assets below and add it to your Userscripts directory.",
-                "3. Open `https://x.com` in Safari — all multilingual shortcuts (`?`), `F` Follow/Unfollow, `Shift+F` Non-Follower Filter on `/following`, `Y/N` confirmation modals, `1`–`9` home tab switching, and `G V/W/O` tab navigation work immediately.",
+                "3. Open `https://x.com` in Safari — all multilingual shortcuts (`?`), `F` Follow/Unfollow, `Shift+F` Follow Filter on `/following`, `/followers`, and `/verified_followers`, `Y/N` confirmation modals, `1`–`9` home tab switching, and `G V/W/O` tab navigation work immediately.",
                 "\n### Chrome / Edge / Brave / Arc",
                 "- [Install from Chrome Web Store](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)",
                 "- Or download **`x-multilingual-keyboard-shortcuts-and-follow-chrome.zip`**, unzip, and load unpacked at `chrome://extensions/`."
