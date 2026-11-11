@@ -2,7 +2,7 @@
 
 **言語 (Languages)**: [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.15-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.16-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
 
 IME（日本語かな・韓国語・中国語・ロシア語・アラビア語・全角入力など）を英数モードに切り替えることなく、**X.com (旧Twitter) のすべての標準キーボードショートカット（`?`）**に加えて、**フォロー/フォロー解除（`F`）**、**片思いフィルター（`Shift+F`）**、**確認ダイアログ操作（`Y`/`N`）**、**フォロワー/フォロー中タブ移動（`G` `V` / `G` `W` / `G` `O`）**をそのまま使える Chrome 拡張機能です。
 

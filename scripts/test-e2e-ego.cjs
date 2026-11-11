@@ -40,9 +40,16 @@ try {
           await page.cdp("Runtime.evaluate", {
             contextId: ctx.id,
             expression: [
+              "for (let i = 1; i < 5000; i++) { try { cancelAnimationFrame(i); clearTimeout(i); clearInterval(i); } catch (_) {} }",
               "window.requestAnimationFrame = () => 0;",
               "window.setTimeout = () => 0;",
               "window.setInterval = () => 0;",
+              "if (typeof chrome !== \\"undefined\\" && chrome.storage?.sync) { chrome.storage.sync.get = () => new Promise(() => {}); chrome.storage.sync.set = () => {}; }",
+              "if (typeof chrome !== \\"undefined\\" && chrome.storage?.onChanged) { chrome.storage.onChanged.addListener = () => {}; }",
+              "if (typeof MutationObserver !== \\"undefined\\") {",
+              "  MutationObserver.prototype.observe = () => {};",
+              "  MutationObserver.prototype.disconnect = () => {};",
+              "}",
               "Object.defineProperty(KeyboardEvent.prototype, \\"code\\", { get: () => \\"\\" });",
               "Object.defineProperty(KeyboardEvent.prototype, \\"key\\", { get: () => \\"\\" });",
               "Object.defineProperty(KeyboardEvent.prototype, \\"keyCode\\", { get: () => 0 });",
@@ -63,7 +70,7 @@ try {
   await neutralizeInstalledExtension();
 
   const src = fs.readFileSync(${JSON.stringify(contentJsPath)}, "utf8");
-  const result = await page.evaluate(async (code) => {
+  const part1 = await page.evaluate(async (code) => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const pressKey = (key, codeStr, opts = {}) => {
       const init = { key, code: codeStr, bubbles: true, cancelable: true, ...opts };
@@ -75,6 +82,9 @@ try {
     localStorage.setItem("x_follow_shortcut_filter_non_followers", "false");
     localStorage.setItem("x_follow_shortcut_show_hints", "true");
     window.scrollTo(0, 0);
+    document.getElementById("xfs-following-filter-bar")?.remove();
+    document.getElementById("xfs-filter-styles")?.remove();
+    document.getElementById("xfs-styles")?.remove();
     new Function(code)();
     // Trigger mouseover to ensure syncUiHints runs even when the tab is in the background (rAF may be throttled)
     window.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
@@ -110,7 +120,7 @@ try {
     const offSteps = [];
     for (const [k, c] of [["ㅓ", "KeyJ"], ["j", "KeyJ"], ["ㅓ", "KeyJ"], ["ㅏ", "KeyK"]]) {
       pressKey(k, c);
-      await sleep(180);
+      await sleep(260);
       const bRect = document.getElementById("xfs-following-filter-bar")?.getBoundingClientRect();
       const fRow = primary?.querySelector("[data-testid=\\"cellInnerDiv\\"][data-xfs-focused=\\"true\\"]");
       const fCell = fRow?.querySelector("[data-testid=\\"UserCell\\"]");
@@ -127,7 +137,7 @@ try {
 
     // 3. Toggle Filter ON via Korean Shift+ㄹ (Shift+F)
     pressKey("ㄹ", "KeyF", { shiftKey: true });
-    await sleep(250);
+    await sleep(450);
     const barOn = document.getElementById("xfs-following-filter-bar");
     const btnOn = document.getElementById("xfs-non-follower-toggle");
     const afterToggleOn = {
@@ -142,7 +152,7 @@ try {
     const onSteps = [];
     for (const [k, c] of [["j", "KeyJ"], ["ㅓ", "KeyJ"], ["j", "KeyJ"], ["k", "KeyK"]]) {
       pressKey(k, c);
-      await sleep(220);
+      await sleep(260);
       window.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
       await sleep(50);
       const bRect = document.getElementById("xfs-following-filter-bar")?.getBoundingClientRect();
@@ -157,6 +167,158 @@ try {
         alignDiffPx: bRect && rRect ? Math.abs(rRect.top - bRect.bottom) : null
       });
     }
+
+    return {
+      initialCheck,
+      offSteps,
+      afterToggleOn,
+      onSteps
+    };
+  }, src);
+
+  const part2 = await page.evaluate(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const pressKey = (key, codeStr, opts = {}) => {
+      const init = { key, code: codeStr, bubbles: true, cancelable: true, ...opts };
+      window.dispatchEvent(new KeyboardEvent("keydown", init));
+      window.dispatchEvent(new KeyboardEvent("keyup", init));
+    };
+
+    // 4b. Concurrent UI responsiveness WHILE Shift+F is ON:
+    //     - measure macrotask event-loop responsiveness while filter is active
+    //     - F (ㄹ) unfollow confirmation modal + N (ㅜ) cancel while filter stays ON
+    //     - manual wheel scroll immediately after J cancels align timers (no scroll hijack)
+    //     - direct click on #xfs-non-follower-toggle button works responsively
+    const measureEventLoopLagSamples = async (samples = 8, gapMs = 30) => {
+      const lags = [];
+      for (let i = 0; i < samples; i++) {
+        const t0 = performance.now();
+        await new Promise((r) => setTimeout(r, 0));
+        lags.push(Number((performance.now() - t0).toFixed(2)));
+        await sleep(gapMs);
+      }
+      const sorted = [...lags].sort((a, b) => a - b);
+      const maxLagMs = sorted[sorted.length - 1] || 0;
+      const p95LagMs = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] || 0;
+      return { lags, maxLagMs, p95LagMs };
+    };
+
+    const longTasksFollowingOn = [];
+    let ltObsFollowing = null;
+    if (
+      typeof PerformanceObserver === "function" &&
+      PerformanceObserver.supportedEntryTypes?.includes("longtask")
+    ) {
+      ltObsFollowing = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          longTasksFollowingOn.push(Number(entry.duration.toFixed(1)));
+        }
+      });
+      ltObsFollowing.observe({ type: "longtask", buffered: false });
+    }
+
+    const followingLoopLag = await measureEventLoopLagSamples(8, 25);
+
+    // Ensure a non-mutual cell is focused while Shift+F is ON, then test F + N modal while filter stays ON
+    pressKey("j", "KeyJ");
+    await sleep(260);
+    pressKey("ㄹ", "KeyF");
+    await sleep(300);
+    const modalOpenedWhileFilterOn = Boolean(document.querySelector("[data-testid=\\"confirmationSheetConfirm\\"]"));
+    pressKey("ㅜ", "KeyN");
+    await sleep(300);
+    const modalClosedWhileFilterOn = !document.querySelector("[data-testid=\\"confirmationSheetConfirm\\"]");
+    const filterStillOnAfterModal =
+      document.getElementById("xfs-non-follower-toggle")?.getAttribute("aria-pressed") === "true";
+
+    // Manual wheel scroll right after J step must cancel [35, 90, 160, 240]ms align timers instead of yanking scroll back
+    pressKey("j", "KeyJ");
+    await sleep(10);
+    window.dispatchEvent(new WheelEvent("wheel", { deltaY: 140, bubbles: true }));
+    const manualTargetScrollY = window.scrollY + 90;
+    window.scrollTo(0, manualTargetScrollY);
+    const scrollAfterManualWheel = window.scrollY;
+    await sleep(265);
+    const scrollAfterAlignWindow = window.scrollY;
+    const manualWheelNotHijacked =
+      scrollAfterManualWheel === 0 || Math.abs(scrollAfterAlignWindow - scrollAfterManualWheel) <= 5;
+
+    // Steady-state zero data-xfs-* attribute churn check over 300ms on settled elements while Shift+F is ON
+    await sleep(350);
+    const settledEls = new WeakSet(
+      document.querySelectorAll(
+        "[data-xfs-hidden], [data-xfs-mutual], [data-xfs-focused], #xfs-following-filter-bar, #xfs-non-follower-toggle, html, [data-testid=\\"primaryColumn\\"]"
+      )
+    );
+    let xfsSteadyAttrMutations = 0;
+    const xfsMutObs = new MutationObserver((records) => {
+      for (const rec of records) {
+        if (
+          rec.type === "attributes" &&
+          rec.attributeName?.startsWith("data-xfs-") &&
+          settledEls.has(rec.target)
+        ) {
+          xfsSteadyAttrMutations++;
+        }
+      }
+    });
+    xfsMutObs.observe(document.documentElement, {
+      attributes: true,
+      attributeOldValue: true,
+      subtree: true
+    });
+    await sleep(300);
+    xfsMutObs.disconnect();
+
+    // Direct UI button click toggle OFF -> ON while on /following
+    const toggleBtnLive = document.getElementById("xfs-non-follower-toggle");
+    toggleBtnLive?.click();
+    await sleep(120);
+    const clickedToggleOff = toggleBtnLive?.getAttribute("aria-pressed") === "false";
+    toggleBtnLive?.click();
+    await sleep(120);
+    const clickedToggleBackOn = toggleBtnLive?.getAttribute("aria-pressed") === "true";
+
+    // Question-mark (?) shortcut help modal open & close while Shift+F is ON
+    pressKey("？", "Slash", { shiftKey: true });
+    await sleep(400);
+    const helpDialog = document.querySelector("[role=\\"dialog\\"]");
+    const helpModalOpenedWhileFilterOn = Boolean(helpDialog);
+    const closeDialogBtn =
+      helpDialog?.querySelector("[data-testid=\\"app-bar-close\\"]") ||
+      document.querySelector("[aria-modal=\\"true\\"] [data-testid=\\"app-bar-close\\"]");
+    if (closeDialogBtn) {
+      closeDialogBtn.click();
+    } else if (/keyboard_shortcuts/i.test(location.pathname) || document.querySelector("[role=\\"dialog\\"]")) {
+      history.back();
+    }
+    await sleep(500);
+    window.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+    await sleep(200);
+    const helpModalClosedWhileFilterOn =
+      !/keyboard_shortcuts/i.test(location.pathname) && !document.querySelector("[role=\\"dialog\\"]");
+
+    // Re-focus a visible non-mutual cell so step 6 (F + N) has an active target cell
+    pressKey("j", "KeyJ");
+    await sleep(260);
+
+    ltObsFollowing?.disconnect();
+
+    const concurrentWhileFilterOn = {
+      followingLoopLag,
+      longTasksFollowingOn,
+      modalOpenedWhileFilterOn,
+      modalClosedWhileFilterOn,
+      filterStillOnAfterModal,
+      manualWheelNotHijacked,
+      scrollAfterManualWheel,
+      scrollAfterAlignWindow,
+      xfsSteadyAttrMutations,
+      clickedToggleOff,
+      clickedToggleBackOn,
+      helpModalOpenedWhileFilterOn,
+      helpModalClosedWhileFilterOn
+    };
 
     // 5. Reset back to OFF via Shift+F
     pressKey("F", "KeyF", { shiftKey: true });
@@ -177,6 +339,34 @@ try {
     await sleep(300);
     const modalClosedAfterN = !document.querySelector("[data-testid=\\"confirmationSheetConfirm\\"]");
 
+    return {
+      concurrentWhileFilterOn,
+      afterToggleOff,
+      modalCheck: { confirmBtnOpen, cancelBtnOpen, modalClosedAfterN }
+    };
+  });
+
+  const navCheck = await page.evaluate(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const pressKey = (key, codeStr, opts = {}) => {
+      const init = { key, code: codeStr, bubbles: true, cancelable: true, ...opts };
+      window.dispatchEvent(new KeyboardEvent("keydown", init));
+      window.dispatchEvent(new KeyboardEvent("keyup", init));
+    };
+    const measureEventLoopLagSamples = async (samples = 8, gapMs = 30) => {
+      const lags = [];
+      for (let i = 0; i < samples; i++) {
+        const t0 = performance.now();
+        await new Promise((r) => setTimeout(r, 0));
+        lags.push(Number((performance.now() - t0).toFixed(2)));
+        await sleep(gapMs);
+      }
+      const sorted = [...lags].sort((a, b) => a - b);
+      const maxLagMs = sorted[sorted.length - 1] || 0;
+      const p95LagMs = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] || 0;
+      return { lags, maxLagMs, p95LagMs };
+    };
+
     // 7. Test g -> w (/followers), g -> v (/verified_followers), profile root cleanup, and g -> o (/following)
     pressKey("ㅎ", "KeyG");
     await sleep(80);
@@ -190,9 +380,25 @@ try {
     const followersBtnText = document.getElementById("xfs-non-follower-toggle")?.textContent || "";
 
     // Toggle ON on /followers and verify -unfollow rows hide while -follow rows stay visible
+    // and main thread remains responsive while VirtualScroller cascades follower batches
+    const longTasksFollowersOn = [];
+    let ltObsFollowers = null;
+    if (
+      typeof PerformanceObserver === "function" &&
+      PerformanceObserver.supportedEntryTypes?.includes("longtask")
+    ) {
+      ltObsFollowers = new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          longTasksFollowersOn.push(Number(entry.duration.toFixed(1)));
+        }
+      });
+      ltObsFollowers.observe({ type: "longtask", buffered: false });
+    }
     pressKey("ㄹ", "KeyF", { shiftKey: true });
-    await sleep(300);
+    const followersLoopLag = await measureEventLoopLagSamples(10, 30);
+    ltObsFollowers?.disconnect();
     const primaryFollowers = document.querySelector("[data-testid=\\"primaryColumn\\"]");
+    const followersCellCount = primaryFollowers?.querySelectorAll("[data-testid=\\"UserCell\\"]").length || 0;
     const followersHiddenHeights = Array.from(
       primaryFollowers?.querySelectorAll("[data-testid=\\"cellInnerDiv\\"]:has([data-testid$=\\"-unfollow\\"], [data-testid$=\\"-cancel\\"])") || []
     ).map((el) => el.getBoundingClientRect().height);
@@ -249,34 +455,31 @@ try {
     const followingModeAgain = document.documentElement.getAttribute("data-xfs-filter-mode");
 
     return {
-      initialCheck,
-      offSteps,
-      afterToggleOn,
-      onSteps,
-      afterToggleOff,
-      modalCheck: { confirmBtnOpen, cancelBtnOpen, modalClosedAfterN },
-      navCheck: {
-        followersPath,
-        barMountedOnFollowers,
-        followersMode,
-        followersBtnText,
-        followersHiddenHeights,
-        followersUnfollowedHeights,
-        verifiedFollowersPath,
-        barMountedOnVerifiedFollowers,
-        verifiedFollowersMode,
-        verifiedFollowersBtnText,
-        verifiedHiddenHeights,
-        verifiedUnfollowedHeights,
-        nonFilterPath,
-        barRemovedOnNonFilter,
-        modeRemovedOnNonFilter,
-        followingPathAgain,
-        barRestoredOnFollowing,
-        followingModeAgain
-      }
+      followersPath,
+      barMountedOnFollowers,
+      followersMode,
+      followersBtnText,
+      followersCellCount,
+      followersLoopLag,
+      longTasksFollowersOn,
+      followersHiddenHeights,
+      followersUnfollowedHeights,
+      verifiedFollowersPath,
+      barMountedOnVerifiedFollowers,
+      verifiedFollowersMode,
+      verifiedFollowersBtnText,
+      verifiedHiddenHeights,
+      verifiedUnfollowedHeights,
+      nonFilterPath,
+      barRemovedOnNonFilter,
+      modeRemovedOnNonFilter,
+      followingPathAgain,
+      barRestoredOnFollowing,
+      followingModeAgain
     };
-  }, src);
+  });
+
+  const result = { ...part1, ...part2, navCheck };
 
   // 8. Non-vacuous check on /DonMacKR/followers that unfollowed (-follow) followers remain visible when filter is ON
   await page.goto("https://x.com/DonMacKR/followers");
@@ -291,6 +494,9 @@ try {
       window.dispatchEvent(new KeyboardEvent("keyup", init));
     };
     localStorage.setItem("x_follow_shortcut_filter_non_followers", "false");
+    document.getElementById("xfs-following-filter-bar")?.remove();
+    document.getElementById("xfs-filter-styles")?.remove();
+    document.getElementById("xfs-styles")?.remove();
     new Function(code)();
     window.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
     await sleep(250);
@@ -374,6 +580,61 @@ for (const step of res.onSteps) {
     `Filter ON J/K step (${step.key}) must align selected row directly below sticky filter bar (diff: ${step.alignDiffPx}px)`
   );
 }
+
+// 4b. Concurrent UI responsiveness & zero steady-state churn while Shift+F is ON
+assert.equal(
+  res.concurrentWhileFilterOn.modalOpenedWhileFilterOn,
+  true,
+  'F (ㄹ) must open confirmation modal while Shift+F is active'
+);
+assert.equal(
+  res.concurrentWhileFilterOn.modalClosedWhileFilterOn,
+  true,
+  'N (ㅜ) must cancel confirmation modal while Shift+F is active'
+);
+assert.equal(
+  res.concurrentWhileFilterOn.filterStillOnAfterModal,
+  true,
+  'Shift+F filter must stay ON after modal cancel'
+);
+assert.equal(
+  res.concurrentWhileFilterOn.manualWheelNotHijacked,
+  true,
+  `Manual wheel scroll must cancel align timers instead of hijacking scroll (afterWheel=${res.concurrentWhileFilterOn.scrollAfterManualWheel}, afterAlignWindow=${res.concurrentWhileFilterOn.scrollAfterAlignWindow})`
+);
+assert.equal(
+  res.concurrentWhileFilterOn.xfsSteadyAttrMutations,
+  0,
+  `Steady-state Shift+F ON must produce 0 data-xfs-* attribute mutations over 300ms (got ${res.concurrentWhileFilterOn.xfsSteadyAttrMutations})`
+);
+assert.equal(
+  res.concurrentWhileFilterOn.clickedToggleOff,
+  true,
+  'Clicking #xfs-non-follower-toggle must toggle filter OFF responsively'
+);
+assert.equal(
+  res.concurrentWhileFilterOn.clickedToggleBackOn,
+  true,
+  'Clicking #xfs-non-follower-toggle again must toggle filter back ON responsively'
+);
+assert.equal(
+  res.concurrentWhileFilterOn.helpModalOpenedWhileFilterOn,
+  true,
+  'Question-mark (?) shortcut help modal must open while Shift+F is active'
+);
+assert.equal(
+  res.concurrentWhileFilterOn.helpModalClosedWhileFilterOn,
+  true,
+  'Question-mark (?) shortcut help modal must close cleanly while Shift+F is active'
+);
+assert.ok(
+  res.concurrentWhileFilterOn.followingLoopLag.p95LagMs < 150,
+  `Main thread macrotask p95 lag on /following with Shift+F ON must stay responsive (<150ms, got ${res.concurrentWhileFilterOn.followingLoopLag.p95LagMs}ms)`
+);
+assert.ok(
+  res.navCheck.followersLoopLag.p95LagMs < 150,
+  `Main thread macrotask p95 lag during /followers Shift+F ON cascade must stay responsive (<150ms, got ${res.navCheck.followersLoopLag.p95LagMs}ms)`
+);
 
 // 5. Toggle OFF assertions
 assert.equal(res.afterToggleOff.ariaPressed, 'false', 'Shift+F must toggle filter back OFF');

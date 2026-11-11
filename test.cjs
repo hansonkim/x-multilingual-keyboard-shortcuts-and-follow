@@ -40,6 +40,8 @@ const {
   syncCompactPill,
   syncFollowingFilter,
   scheduleUiSync,
+  scheduleBackgroundUiSync,
+  shouldScheduleSyncForMutations,
   syncUiHints
 } = require('./content.js');
 
@@ -2064,6 +2066,772 @@ assert.ok(
       });
       for (const fn of listeners.keyup) fn(kuAfterClose);
       assert.equal(dispatchedEvents.length, 0, 'keyup after unresolved editable keydown must not fire shortcut');
+    }
+  }
+
+  // 18. Shift+F cooperative main-thread yielding, steady-state zero-DOM-churn, & concurrent UI responsiveness
+  {
+    const prevScrollBy = globalThis.window.scrollBy;
+    let scrollByCalls = [];
+    globalThis.window.scrollBy = (x, y) => {
+      scrollByCalls.push([x, y]);
+    };
+
+    try {
+      const makeTrackedSuite = (cellCount, mode) => {
+        const stats = {
+          attrWrites: 0,
+          attrRemoves: 0,
+          stylePropWrites: 0,
+          cellQueries: 0
+        };
+
+        const makeAttrBag = (tagName = 'DIV', initial = {}) => {
+          const attrs = { ...initial };
+          const classes = new Set();
+          return {
+            nodeType: 1,
+            tagName,
+            isConnected: true,
+            getAttribute(k) {
+              return Object.prototype.hasOwnProperty.call(attrs, k) ? attrs[k] : null;
+            },
+            setAttribute(k, v) {
+              stats.attrWrites++;
+              attrs[k] = String(v);
+            },
+            removeAttribute(k) {
+              stats.attrRemoves++;
+              delete attrs[k];
+            },
+            classList: {
+              add(c) {
+                classes.add(c);
+              },
+              remove(c) {
+                classes.delete(c);
+              },
+              contains(c) {
+                return classes.has(c);
+              }
+            }
+          };
+        };
+
+        const styleMap = new Map();
+        const docEl = {
+          ...makeAttrBag('HTML'),
+          lang: 'ko',
+          style: {
+            setProperty(k, v) {
+              stats.stylePropWrites++;
+              styleMap.set(k, String(v));
+            },
+            getPropertyValue(k) {
+              return styleMap.get(k) || '';
+            }
+          }
+        };
+
+        const headStyles = new Map();
+        const head = {
+          nodeType: 1,
+          tagName: 'HEAD',
+          appendChild(el) {
+            el.parentElement = head;
+            if (el.id) headStyles.set(el.id, el);
+            return el;
+          }
+        };
+
+        const rows = [];
+        const cells = [];
+        const buttons = [];
+        const links = [];
+
+        let barEl = null;
+        let toggleBtnEl = null;
+
+        const primary = {
+          ...makeAttrBag('DIV', { 'data-testid': 'primaryColumn' }),
+          firstChild: null,
+          insertBefore(el) {
+            el.parentNode = primary;
+            if (el.id === 'xfs-following-filter-bar') barEl = el;
+            return el;
+          },
+          appendChild(el) {
+            el.parentNode = primary;
+            if (el.id === 'xfs-following-filter-bar') barEl = el;
+            return el;
+          },
+          contains(node) {
+            return (
+              node === primary ||
+              cells.includes(node) ||
+              rows.includes(node) ||
+              links.includes(node) ||
+              buttons.includes(node)
+            );
+          },
+          querySelector(sel) {
+            if (sel === '#xfs-following-filter-bar') return barEl;
+            if (sel === '[role="tablist"]') {
+              return {
+                getBoundingClientRect: () => ({ top: 0, bottom: 106, height: 53 }),
+                closest: () => null
+              };
+            }
+            return null;
+          },
+          querySelectorAll(sel) {
+            if (sel === '[data-testid="UserCell"]') return cells;
+            return [];
+          }
+        };
+
+        for (let i = 0; i < cellCount; i++) {
+          // Every 5th cell is unfiltered (non-follower / not-followed-back), others are filtered out
+          const isFilteredInitial = i % 5 !== 1;
+          const row = {
+            ...makeAttrBag('DIV', { 'data-testid': 'cellInnerDiv' }),
+            getBoundingClientRect: () => {
+              const hidden =
+                docEl.getAttribute('data-xfs-filter-non-followers') === 'true' &&
+                row.getAttribute('data-xfs-hidden') === 'true';
+              return hidden
+                ? { top: 200, bottom: 200, height: 0 }
+                : { top: 200 + i * 72, bottom: 272 + i * 72, height: 72 };
+            },
+            closest(sel) {
+              if (sel === '[data-testid="cellInnerDiv"]') return row;
+              if (sel === '[data-testid="primaryColumn"]') return primary;
+              return null;
+            },
+            querySelector(sel) {
+              if (sel === '[data-testid="UserCell"]') return cell;
+              return null;
+            }
+          };
+
+          const tid =
+            mode === 'following'
+              ? `${1000 + i}-unfollow`
+              : isFilteredInitial
+                ? `${1000 + i}-unfollow`
+                : `${1000 + i}-follow`;
+          const btn = {
+            ...makeAttrBag('BUTTON', {
+              'data-testid': tid,
+              'aria-label': `@user_${i} 팔로우`
+            }),
+            clicked: 0,
+            click() {
+              this.clicked++;
+            },
+            closest(sel) {
+              if (sel.includes('UserCell')) return cell;
+              if (sel === '[data-testid="cellInnerDiv"]') return row;
+              return null;
+            }
+          };
+
+          const link = {
+            ...makeAttrBag('A', { href: `/user_${i}`, role: 'link', tabindex: '-1' }),
+            focused: 0,
+            focus() {
+              this.focused++;
+              doc.activeElement = link;
+            },
+            closest(sel) {
+              if (sel === '[data-testid="UserCell"]') return cell;
+              if (sel === '[data-testid="cellInnerDiv"]') return row;
+              return null;
+            }
+          };
+
+          const indicator =
+            mode === 'following' && isFilteredInitial
+              ? makeAttrBag('SPAN', { 'data-testid': 'userFollowIndicator' })
+              : null;
+          const userNameNode = makeAttrBag('DIV', { 'data-testid': 'UserName' });
+
+          const cell = {
+            ...makeAttrBag('DIV', { 'data-testid': 'UserCell' }),
+            closest(sel) {
+              if (sel === '[data-testid="cellInnerDiv"]') return row;
+              if (sel === '[data-testid="UserCell"]') return cell;
+              if (sel === '[data-testid="primaryColumn"]') return primary;
+              return null;
+            },
+            querySelector(sel) {
+              stats.cellQueries++;
+              if (sel === '[data-testid="userFollowIndicator"]') return indicator;
+              if (sel === '[data-testid="UserName"]') return userNameNode;
+              if (sel === 'a[role="link"][tabindex="-1"]' || sel === 'a[href]') return link;
+              const curBtnTid = btn.getAttribute('data-testid') || '';
+              if (sel === '[data-testid$="-follow"]') {
+                return curBtnTid.endsWith('-follow') ? btn : null;
+              }
+              if (sel === '[data-testid$="-unfollow"], [data-testid$="-cancel"]') {
+                return curBtnTid.endsWith('-unfollow') || curBtnTid.endsWith('-cancel') ? btn : null;
+              }
+              if (sel.includes('-follow') || sel.includes('-unfollow')) {
+                return btn;
+              }
+              return null;
+            },
+            querySelectorAll(sel) {
+              if (sel === 'a[href]') return [link];
+              return [];
+            }
+          };
+
+          rows.push(row);
+          cells.push(cell);
+          buttons.push(btn);
+          links.push(link);
+        }
+
+        let confirmModalOpen = false;
+        let confirmClicks = 0;
+        let cancelClicks = 0;
+        const confirmSheetBtn = {
+          ...makeAttrBag('BUTTON', { 'data-testid': 'confirmationSheetConfirm' }),
+          click() {
+            confirmClicks++;
+            confirmModalOpen = false;
+          }
+        };
+        const cancelSheetBtn = {
+          ...makeAttrBag('BUTTON', { 'data-testid': 'confirmationSheetCancel' }),
+          click() {
+            cancelClicks++;
+            confirmModalOpen = false;
+          }
+        };
+
+        const doc = {
+          body: mockBody,
+          hidden: false,
+          activeElement: mockBody,
+          documentElement: docEl,
+          head,
+          createElement(tag) {
+            const upper = String(tag || 'DIV').toUpperCase();
+            const el = {
+              ...makeAttrBag(upper),
+              id: '',
+              type: '',
+              textContent: '',
+              parentNode: null,
+              previousSibling: null,
+              appendChild(child) {
+                child.parentNode = el;
+                if (child.id === 'xfs-non-follower-toggle') toggleBtnEl = child;
+                return child;
+              },
+              addEventListener() {},
+              remove() {
+                if (el.id && headStyles.get(el.id) === el) headStyles.delete(el.id);
+                if (el === barEl) barEl = null;
+                el.parentNode = null;
+              }
+            };
+            return el;
+          },
+          getElementById(id) {
+            if (headStyles.has(id)) return headStyles.get(id);
+            if (id === 'xfs-following-filter-bar') return barEl;
+            if (id === 'xfs-non-follower-toggle') return toggleBtnEl;
+            return null;
+          },
+          querySelector(sel) {
+            if (sel === '[data-testid="primaryColumn"]') return primary;
+            if (sel === 'header nav a[data-testid="AppTabBar_Profile_Link"]') {
+              return { getAttribute: (k) => (k === 'href' ? '/Hanssony_' : null) };
+            }
+            if (confirmModalOpen && sel === '[data-testid="confirmationSheetConfirm"]') {
+              return confirmSheetBtn;
+            }
+            if (confirmModalOpen && sel === '[data-testid="confirmationSheetCancel"]') {
+              return cancelSheetBtn;
+            }
+            if (confirmModalOpen && sel.includes('confirmationSheetConfirm')) {
+              return confirmSheetBtn;
+            }
+            return null;
+          },
+          querySelectorAll(sel) {
+            if (sel === '[data-xfs-target="true"]') {
+              return buttons.filter((b) => b.getAttribute('data-xfs-target') === 'true');
+            }
+            if (sel.includes('data-xfs-mutual')) {
+              return [...cells, ...rows].filter(
+                (el) =>
+                  el.getAttribute('data-xfs-mutual') === 'true' ||
+                  el.getAttribute('data-xfs-hidden') === 'true' ||
+                  el.getAttribute('data-xfs-focused') === 'true'
+              );
+            }
+            return [];
+          }
+        };
+
+        return {
+          doc,
+          primary,
+          rows,
+          cells,
+          buttons,
+          links,
+          stats,
+          headStyles,
+          openConfirmModal() {
+            confirmModalOpen = true;
+          },
+          getModalCounts() {
+            return { confirmClicks, cancelClicks, confirmModalOpen };
+          }
+        };
+      };
+
+      // 18a. Cooperative chunking & main-thread yielding across 220 UserCells on /followers
+      setFilterNonFollowers(false);
+      setShowUiHints(true);
+      const flwSuite = makeTrackedSuite(220, 'followers');
+      globalThis.document = flwSuite.doc;
+      globalThis.location = { pathname: '/Hanssony_/followers' };
+
+      const eventOrder = [];
+      setFilterNonFollowers(true);
+      eventOrder.push('toggle-returned');
+
+      // CSS root attributes are applied synchronously for immediate visual hiding
+      assert.equal(flwSuite.doc.documentElement.getAttribute('data-xfs-filter-mode'), 'followers');
+      assert.equal(flwSuite.doc.documentElement.getAttribute('data-xfs-filter-non-followers'), 'true');
+      assert.equal(flwSuite.primary.getAttribute('data-xfs-filter-non-followers'), 'true');
+      assert.ok(
+        flwSuite.headStyles.get('xfs-filter-styles')?.textContent.includes('content-visibility: hidden'),
+        'Filter stylesheet must apply content-visibility: hidden to collapsed rows'
+      );
+
+      // Only the first budget (80 cells) was processed synchronously; tail cells deferred to yielded chunks
+      assert.equal(flwSuite.cells[0].getAttribute('data-xfs-hidden'), 'true');
+      assert.equal(flwSuite.cells[1].getAttribute('data-xfs-hidden'), null);
+      assert.equal(
+        flwSuite.cells[219].getAttribute('data-xfs-hidden'),
+        null,
+        'Tail cell 219 must be deferred to a yielded macrotask chunk instead of monopolizing one turn'
+      );
+
+      // Queue a 0ms UI macrotask: it MUST execute before the next filter chunk runs!
+      let hiddenAtZeroMsTick = null;
+      setTimeout(() => {
+        eventOrder.push('ui-macrotask-0ms');
+        hiddenAtZeroMsTick = flwSuite.cells[219].getAttribute('data-xfs-hidden');
+      }, 0);
+
+      await new Promise((r) => setTimeout(r, 180));
+      assert.equal(eventOrder[0], 'toggle-returned');
+      assert.equal(eventOrder[1], 'ui-macrotask-0ms', 'UI 0ms macrotask must run before yielded filter chunks');
+      assert.equal(hiddenAtZeroMsTick, null, 'Chunk continuation must yield at least one macrotask gap');
+
+      // All 220 cells are now accurately processed
+      for (let i = 0; i < 220; i++) {
+        const expected = i % 5 !== 1 ? 'true' : null;
+        assert.equal(
+          flwSuite.cells[i].getAttribute('data-xfs-hidden'),
+          expected,
+          `Cell ${i} hidden state mismatch after cooperative chunking`
+        );
+      }
+
+      // 18b. Steady-state convergence: repeated syncUiHints() performs ZERO DOM/style writes & ZERO cell queries
+      flwSuite.stats.attrWrites = 0;
+      flwSuite.stats.attrRemoves = 0;
+      flwSuite.stats.stylePropWrites = 0;
+      flwSuite.stats.cellQueries = 0;
+      for (let k = 0; k < 5; k++) {
+        syncUiHints();
+      }
+      assert.equal(flwSuite.stats.attrWrites, 0, 'Steady-state syncUiHints must perform 0 setAttribute calls');
+      assert.equal(flwSuite.stats.attrRemoves, 0, 'Steady-state syncUiHints must perform 0 removeAttribute calls');
+      assert.equal(flwSuite.stats.stylePropWrites, 0, 'Steady-state syncUiHints must perform 0 style.setProperty calls');
+      assert.equal(flwSuite.stats.cellQueries, 0, 'Steady-state syncUiHints must perform 0 per-cell querySelector calls');
+
+      // Wait another 80ms while idle: zero background chunk timers remain firing
+      await new Promise((r) => setTimeout(r, 80));
+      assert.equal(flwSuite.stats.attrWrites, 0, 'Idle steady state must have 0 background timer churn');
+
+      // Incremental single-cell update: clicking Follow Back flips button data-testid from -follow to -unfollow
+      flwSuite.buttons[1].setAttribute('data-testid', '1001-unfollow');
+      flwSuite.stats.attrWrites = 0;
+      flwSuite.stats.cellQueries = 0;
+      syncFollowingFilter(flwSuite.doc, '/Hanssony_/followers');
+      assert.equal(flwSuite.cells[1].getAttribute('data-xfs-hidden'), 'true', 'Mutated cell must update immediately');
+      assert.ok(flwSuite.stats.attrWrites <= 4, `Expected O(1) attribute writes for 1 changed cell, got ${flwSuite.stats.attrWrites}`);
+      assert.ok(flwSuite.stats.cellQueries <= 4, `Expected O(1) cell queries for 1 changed cell, got ${flwSuite.stats.cellQueries}`);
+
+      // MutationObserver record filter ignores <style> (Dark Reader / AdGuard), <head>, #xfs-*, and text-only nodes
+      const darkReaderStyleNode = { nodeType: 1, tagName: 'STYLE', id: '', closest: () => flwSuite.doc.head };
+      const ownBarNode = { nodeType: 1, tagName: 'BUTTON', id: 'xfs-non-follower-toggle', closest: (s) => (s.includes('xfs-following-filter-bar') ? {} : null) };
+      const textNodeOnly = { nodeType: 3, parentElement: flwSuite.primary };
+      const realCellNode = { nodeType: 1, tagName: 'DIV', id: '', closest: () => null };
+      assert.equal(
+        shouldScheduleSyncForMutations([
+          { type: 'childList', target: darkReaderStyleNode, addedNodes: [{ nodeType: 3 }], removedNodes: [] },
+          { type: 'childList', target: flwSuite.doc.head, addedNodes: [darkReaderStyleNode], removedNodes: [] },
+          { type: 'attributes', target: ownBarNode },
+          { type: 'childList', target: flwSuite.primary, addedNodes: [textNodeOnly], removedNodes: [] }
+        ]),
+        false,
+        'External <style>, <head>, #xfs-*, and text-only mutations must never schedule syncs'
+      );
+      assert.equal(
+        shouldScheduleSyncForMutations([
+          { type: 'childList', target: flwSuite.primary, addedNodes: [realCellNode], removedNodes: [] }
+        ]),
+        true,
+        'Element additions in timeline must schedule background sync'
+      );
+      assert.equal(
+        shouldScheduleSyncForMutations([
+          { type: 'attributes', target: flwSuite.buttons[6] }
+        ]),
+        true,
+        'Button data-testid attribute change must schedule background sync'
+      );
+
+      // Unhydrated skeleton cells on /following terminate in bounded slices (no infinite re-scan loop)
+      const skeletonCells = Array.from({ length: 120 }, () => ({
+        nodeType: 1,
+        tagName: 'DIV',
+        getAttribute: () => null,
+        setAttribute() {},
+        removeAttribute() {},
+        closest: () => null,
+        querySelector: () => null,
+        querySelectorAll: () => []
+      }));
+      let skeletonScanCount = 0;
+      skeletonCells[0].querySelector = (sel) => {
+        if (sel === '[data-testid="userFollowIndicator"]') skeletonScanCount++;
+        return null;
+      };
+      const skelPrimary = {
+        getAttribute: () => null,
+        setAttribute() {},
+        removeAttribute() {},
+        classList: { add() {}, remove() {}, contains: () => false },
+        contains: () => false,
+        querySelector: () => null,
+        querySelectorAll: (sel) => (sel === '[data-testid="UserCell"]' ? skeletonCells : [])
+      };
+      const skelDoc = {
+        body: mockBody,
+        hidden: false,
+        activeElement: mockBody,
+        documentElement: {
+          lang: 'en',
+          getAttribute: () => null,
+          setAttribute() {},
+          removeAttribute() {},
+          style: { setProperty() {} }
+        },
+        head: { appendChild() {} },
+        createElement: () => ({ id: '', textContent: '', appendChild() {}, addEventListener() {}, setAttribute() {}, getAttribute: () => null, remove() {} }),
+        getElementById: () => null,
+        querySelector: (sel) => (sel === '[data-testid="primaryColumn"]' ? skelPrimary : null),
+        querySelectorAll: () => []
+      };
+      globalThis.document = skelDoc;
+      globalThis.location = { pathname: '/Hanssony_/following' };
+      syncFollowingFilter(skelDoc, '/Hanssony_/following');
+      await new Promise((r) => setTimeout(r, 150));
+      const scansAfterSettle = skeletonScanCount;
+      await new Promise((r) => setTimeout(r, 80));
+      assert.equal(skeletonScanCount, scansAfterSettle, 'Unhydrated skeleton cells must not loop chunk timers indefinitely');
+      assert.equal(scansAfterSettle, 1, 'Cell 0 in skeleton pass must be scanned once per pass thanks to monotonic startIndex');
+
+      // 18b-2. Partial follower hydration (avatar before -follow button) & detached button swap must NOT permanently cache as self
+      {
+        let mountedFollowBtn = null;
+        const avatarNode = { nodeType: 1, tagName: 'DIV', getAttribute: () => 'UserAvatar-Container-bob' };
+        const partialRowAttrs = {};
+        const partialCellAttrs = {};
+        const partialRow = {
+          nodeType: 1,
+          tagName: 'DIV',
+          isConnected: true,
+          getAttribute: (k) => (Object.prototype.hasOwnProperty.call(partialRowAttrs, k) ? partialRowAttrs[k] : null),
+          setAttribute: (k, v) => { partialRowAttrs[k] = String(v); },
+          removeAttribute: (k) => { delete partialRowAttrs[k]; },
+          classList: { add() {}, remove() {}, contains: () => false }
+        };
+        const partialCell = {
+          nodeType: 1,
+          tagName: 'DIV',
+          isConnected: true,
+          getAttribute: (k) => (Object.prototype.hasOwnProperty.call(partialCellAttrs, k) ? partialCellAttrs[k] : null),
+          setAttribute: (k, v) => { partialCellAttrs[k] = String(v); },
+          removeAttribute: (k) => { delete partialCellAttrs[k]; },
+          classList: { add() {}, remove() {}, contains: () => false },
+          contains: (n) => n === partialCell || n === mountedFollowBtn || n === avatarNode,
+          closest: (sel) => (sel === '[data-testid="cellInnerDiv"]' ? partialRow : null),
+          querySelector: (sel) => {
+            if (sel === '[data-testid$="-follow"]') {
+              return mountedFollowBtn && mountedFollowBtn.getAttribute('data-testid').endsWith('-follow')
+                ? mountedFollowBtn
+                : null;
+            }
+            if (sel === '[data-testid$="-unfollow"], [data-testid$="-cancel"]') {
+              return mountedFollowBtn && mountedFollowBtn.getAttribute('data-testid').endsWith('-unfollow')
+                ? mountedFollowBtn
+                : null;
+            }
+            if (sel === '[data-testid^="UserAvatar-Container-"]') return avatarNode;
+            return null;
+          },
+          querySelectorAll: (sel) => (sel === 'a[href]' ? [{ getAttribute: () => '/bob_user' }] : [])
+        };
+        const partialPrimary = {
+          getAttribute: () => null,
+          setAttribute() {},
+          removeAttribute() {},
+          classList: { add() {}, remove() {}, contains: () => false },
+          contains: () => false,
+          querySelector: () => null,
+          querySelectorAll: (sel) => (sel === '[data-testid="UserCell"]' ? [partialCell] : [])
+        };
+        const partialDocAttrs = {};
+        const partialDoc = {
+          body: mockBody,
+          hidden: false,
+          activeElement: mockBody,
+          documentElement: {
+            lang: 'en',
+            getAttribute: (k) => (Object.prototype.hasOwnProperty.call(partialDocAttrs, k) ? partialDocAttrs[k] : null),
+            setAttribute: (k, v) => { partialDocAttrs[k] = String(v); },
+            removeAttribute: (k) => { delete partialDocAttrs[k]; },
+            style: { setProperty() {} }
+          },
+          head: { appendChild() {} },
+          createElement: () => ({ id: '', textContent: '', appendChild() {}, addEventListener() {}, setAttribute() {}, getAttribute: () => null, remove() {} }),
+          getElementById: () => null,
+          querySelector: (sel) => {
+            if (sel === '[data-testid="primaryColumn"]') return partialPrimary;
+            if (sel === 'header nav a[data-testid="AppTabBar_Profile_Link"]') {
+              return { getAttribute: (k) => (k === 'href' ? '/Hanssony_' : null) };
+            }
+            return null;
+          },
+          querySelectorAll: () => []
+        };
+
+        globalThis.document = partialDoc;
+        globalThis.location = { pathname: '/Hanssony_/followers' };
+        setFilterNonFollowers(true);
+        assert.equal(partialCell.getAttribute('data-xfs-hidden'), 'true', 'Avatar-only unhydrated cell initially hidden');
+
+        // Now React mounts [data-testid="999-follow"] on the cell: syncFollowingFilter MUST unhide it!
+        mountedFollowBtn = {
+          isConnected: true,
+          getAttribute: (k) => (k === 'data-testid' ? '999-follow' : null)
+        };
+        syncFollowingFilter(partialDoc, '/Hanssony_/followers');
+        assert.equal(
+          partialCell.getAttribute('data-xfs-hidden'),
+          null,
+          'Follower cell that had UserAvatar-Container before -follow button mounted must unhide once -follow mounts'
+        );
+        assert.equal(partialRow.getAttribute('data-xfs-hidden'), null);
+
+        // Next simulate user following (999-unfollow) -> unfollowing where old button detaches on intermediate render -> new 999-follow mounts
+        mountedFollowBtn = {
+          isConnected: true,
+          getAttribute: (k) => (k === 'data-testid' ? '999-unfollow' : null)
+        };
+        syncFollowingFilter(partialDoc, '/Hanssony_/followers');
+        assert.equal(partialCell.getAttribute('data-xfs-hidden'), 'true');
+
+        const detachedBtn = mountedFollowBtn;
+        detachedBtn.isConnected = false;
+        mountedFollowBtn = null; // intermediate render: avatar still present, button temporarily absent
+        syncFollowingFilter(partialDoc, '/Hanssony_/followers');
+
+        mountedFollowBtn = {
+          isConnected: true,
+          getAttribute: (k) => (k === 'data-testid' ? '999-follow' : null)
+        };
+        syncFollowingFilter(partialDoc, '/Hanssony_/followers');
+        assert.equal(
+          partialCell.getAttribute('data-xfs-hidden'),
+          null,
+          'Follower cell after detached -unfollow -> new -follow swap must unhide cleanly'
+        );
+      }
+
+      // 18b-3. Interleaved mutation at idx < 80 (cells[5] / cells[1]) while chunk continuation is pending at startIndex = 80
+      {
+        setFilterNonFollowers(false);
+        const interleaveSuite = makeTrackedSuite(220, 'followers');
+        globalThis.document = interleaveSuite.doc;
+        globalThis.location = { pathname: '/Hanssony_/followers' };
+
+        // Trigger active user wheel window so chunk continuation backs off (120ms), keeping startIndex = 80 in flight
+        for (const fn of listeners.wheel || []) fn({ type: 'wheel' });
+        setFilterNonFollowers(true);
+        assert.equal(interleaveSuite.cells[1].getAttribute('data-xfs-hidden'), null, 'Cell 1 (-follow) initially visible');
+        assert.equal(interleaveSuite.cells[219].getAttribute('data-xfs-hidden'), null, 'Chunks 80..219 still in flight');
+
+        // Mutate cell 1 (idx = 1 < 80) from -follow to -unfollow while chunk continuation is pending at startIndex = 80
+        interleaveSuite.buttons[1].setAttribute('data-testid', '1001-unfollow');
+        scheduleBackgroundUiSync();
+
+        await new Promise((r) => setTimeout(r, 320));
+        assert.equal(
+          interleaveSuite.cells[1].getAttribute('data-xfs-hidden'),
+          'true',
+          'Mutated cell at idx < 80 during in-flight chunking must not be skipped by background sync'
+        );
+        assert.equal(
+          interleaveSuite.cells[219].getAttribute('data-xfs-hidden'),
+          'true',
+          'Tail chunks 80..219 must also complete cleanly'
+        );
+      }
+
+      // 18c. Concurrent UI responsiveness while Shift+F chunking is actively in flight (/following & /verified_followers)
+      setFilterNonFollowers(false);
+      const ingSuite = makeTrackedSuite(220, 'following');
+      globalThis.document = ingSuite.doc;
+      globalThis.location = { pathname: '/Hanssony_/following' };
+
+      // Toggle Shift+F via keyboard shortcut (Korean IME 'ㄹ' + Shift)
+      assert.equal(
+        handleActionIfMatched(makeEv({ key: 'ㄹ', code: 'KeyF', shiftKey: true }), ingSuite.doc, false),
+        true,
+        'Shift+F must toggle filter ON'
+      );
+      assert.equal(getFilterNonFollowers(), true);
+      assert.equal(ingSuite.cells[219].getAttribute('data-xfs-hidden'), null, 'Chunks 80..219 still in flight');
+
+      // While chunks 80..219 are still pending: J / K step immediately across visible non-follower cells (indices 1, 6, 11...)
+      scrollByCalls.length = 0;
+      assert.equal(
+        handleActionIfMatched(makeEv({ key: 'ㅓ', code: 'KeyJ' }), ingSuite.doc, false),
+        true,
+        'J must step immediately while Shift+F chunking is active'
+      );
+      assert.equal(ingSuite.doc.activeElement, ingSuite.links[1], 'First J focuses first non-follower cell (index 1)');
+      assert.equal(ingSuite.cells[1].getAttribute('data-xfs-focused'), 'true');
+
+      assert.equal(
+        handleActionIfMatched(makeEv({ key: 'ㅓ', code: 'KeyJ' }), ingSuite.doc, false),
+        true,
+        'Second J steps to second non-follower cell (index 6)'
+      );
+      assert.equal(ingSuite.doc.activeElement, ingSuite.links[6]);
+      assert.equal(ingSuite.cells[1].getAttribute('data-xfs-focused'), null, 'Previous cell focus highlight cleared in O(1)');
+      assert.equal(ingSuite.cells[6].getAttribute('data-xfs-focused'), 'true');
+
+      assert.equal(
+        handleActionIfMatched(makeEv({ key: 'ㅏ', code: 'KeyK' }), ingSuite.doc, false),
+        true,
+        'K steps back to index 1 immediately'
+      );
+      assert.equal(ingSuite.doc.activeElement, ingSuite.links[1]);
+
+      // Manual wheel scroll immediately cancels alignFollowingCellBelowHeader [35, 90, 160, 240]ms timers (no scroll hijack!)
+      const scrollCountBeforeWheel = scrollByCalls.length;
+      for (const fn of listeners.wheel || []) fn({ type: 'wheel' });
+      await new Promise((r) => setTimeout(r, 270));
+      assert.equal(
+        scrollByCalls.length,
+        scrollCountBeforeWheel,
+        'Manual wheel event must cancel pending alignFollowingCellBelowHeader scrollBy timers'
+      );
+
+      // F opens unfollow modal on focused non-follower cell, and N / Y handle confirmation modal while Shift+F is ON
+      assert.equal(
+        handleActionIfMatched(makeEv({ key: 'ㄹ', code: 'KeyF' }), ingSuite.doc, false),
+        true,
+        'F must click target cell button while Shift+F is active'
+      );
+      assert.equal(ingSuite.buttons[1].clicked, 1);
+      ingSuite.openConfirmModal();
+
+      // Pointerdown right after modal cancel must also prevent restoreCellFocusIfNeeded from stealing focus
+      assert.equal(
+        handleActionIfMatched(makeEv({ key: 'ㅜ', code: 'KeyN' }), ingSuite.doc, false),
+        true,
+        'N cancels confirmation modal while Shift+F is active'
+      );
+      assert.equal(ingSuite.getModalCounts().cancelClicks, 1);
+      const customClickedTarget = { nodeType: 1, tagName: 'BUTTON', getAttribute: () => null, closest: () => null };
+      ingSuite.doc.activeElement = customClickedTarget;
+      for (const fn of listeners.pointerdown || []) fn({ type: 'pointerdown' });
+      await new Promise((r) => setTimeout(r, 170));
+      assert.equal(
+        ingSuite.doc.activeElement,
+        customClickedTarget,
+        'User pointerdown must cancel restoreCellFocusIfNeeded timers so focus is not hijacked'
+      );
+
+      // Re-focus cell 1, open modal, confirm with Y
+      ingSuite.links[1].focus();
+      ingSuite.openConfirmModal();
+      assert.equal(
+        handleActionIfMatched(makeEv({ key: 'ㅛ', code: 'KeyY' }), ingSuite.doc, false),
+        true,
+        'Y confirms modal while Shift+F is active'
+      );
+      assert.equal(ingSuite.getModalCounts().confirmClicks, 1);
+
+      // Toggle Shift+F OFF while chunking is in flight on /verified_followers: cancels pending ON chunks immediately
+      const vfSuite = makeTrackedSuite(220, 'followers');
+      globalThis.document = vfSuite.doc;
+      globalThis.location = { pathname: '/Hanssony_/verified_followers' };
+      setFilterNonFollowers(true);
+      assert.equal(vfSuite.doc.documentElement.getAttribute('data-xfs-filter-non-followers'), 'true');
+      assert.equal(vfSuite.cells[219].getAttribute('data-xfs-hidden'), null);
+
+      // Immediately toggle Shift+F OFF before ON chunks run!
+      assert.equal(
+        handleActionIfMatched(makeEv({ key: 'F', code: 'KeyF', shiftKey: true }), vfSuite.doc, false),
+        true,
+        'Shift+F must immediately toggle filter OFF even while ON chunks were queued'
+      );
+      assert.equal(getFilterNonFollowers(), false);
+      assert.equal(
+        vfSuite.doc.documentElement.getAttribute('data-xfs-filter-non-followers'),
+        null,
+        'Root filter attribute must be removed synchronously on Shift+F OFF'
+      );
+      await new Promise((r) => setTimeout(r, 180));
+      for (let i = 0; i < 220; i++) {
+        assert.equal(
+          vfSuite.cells[i].getAttribute('data-xfs-hidden'),
+          null,
+          `Cell ${i} must have data-xfs-hidden cleared after Shift+F OFF`
+        );
+      }
+
+      // Leaving filter route (/verified_followers -> /home) cleans up once, then does 0 filter work on /home
+      globalThis.location = { pathname: '/home' };
+      syncUiHints();
+      assert.equal(vfSuite.doc.documentElement.getAttribute('data-xfs-filter-mode'), null);
+      vfSuite.stats.attrRemoves = 0;
+      syncUiHints();
+      assert.equal(vfSuite.stats.attrRemoves, 0, 'Repeated /home syncs must not re-run filter cleanup');
+    } finally {
+      if (prevScrollBy === undefined) {
+        delete globalThis.window.scrollBy;
+      } else {
+        globalThis.window.scrollBy = prevScrollBy;
+      }
+      setFilterNonFollowers(false);
     }
   }
 

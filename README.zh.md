@@ -2,7 +2,7 @@
 
 **语言 (Languages)**: [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.15-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.16-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
 
 无需切换到英文输入法，即可在**中文、韩语、日语、俄语、阿拉伯语及全角输入法（IME）**下直接使用 **X.com (Twitter) 的所有原生快捷键（`?`）**，并新增**关注/取消关注（`F`）**、**未回关用户筛选（`Shift+F`）**、**确认弹窗（`Y`/`N`）**以及**关注者/正在关注标签页跳转（`G` `V` / `G` `W` / `G` `O`）**快捷键。
 

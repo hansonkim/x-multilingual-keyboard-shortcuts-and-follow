@@ -254,12 +254,140 @@ let lastFocusedRowTop = null;
 let lastPathname = '';
 let pendingPrefix = { key: null, until: 0 };
 
+const DIRECT_CELL_WORK_BUDGET = 80;
+const BG_CELL_WORK_BUDGET = 32;
+const BG_CELL_TIME_BUDGET_MS = 4;
+const FILTER_CHUNK_YIELD_MS = 20;
+const FILTER_INTERACTION_BACKOFF_MS = 120;
+const BG_UI_SYNC_MIN_INTERVAL_MS = 90;
+const BG_UI_SYNC_FILTER_INTERVAL_MS = 120;
+const USER_ACTIVE_WINDOW_MS = 160;
+const THEME_COLOR_CACHE_MS = 2000;
+
+let alignTimerIds = [];
+let restoreFocusTimerIds = [];
+let filterChunkTimerId = null;
+let filterChunkGeneration = 0;
+let bgUiSyncTimerId = null;
+let isApplyingDomSync = false;
+let pendingSyncOnVisible = false;
+let lastUiSyncFinishedAt = 0;
+let lastUserScrollAt = 0;
+let lastUserPointerAt = 0;
+let lastHoveredContext = null;
+
+function nowPerfMs() {
+  return typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now();
+}
+
+function clearAlignTimers() {
+  if (alignTimerIds.length === 0) return;
+  if (typeof clearTimeout === 'function') {
+    for (const id of alignTimerIds) clearTimeout(id);
+  }
+  alignTimerIds = [];
+}
+
+function clearRestoreFocusTimers() {
+  if (restoreFocusTimerIds.length === 0) return;
+  if (typeof clearTimeout === 'function') {
+    for (const id of restoreFocusTimerIds) clearTimeout(id);
+  }
+  restoreFocusTimerIds = [];
+}
+
+function clearFilterChunkTimer() {
+  filterChunkGeneration++;
+  if (filterChunkTimerId !== null) {
+    if (typeof clearTimeout === 'function') {
+      clearTimeout(filterChunkTimerId);
+    }
+    filterChunkTimerId = null;
+  }
+}
+
+function isUserActivelyInteracting() {
+  const now = Date.now();
+  return (
+    now - lastUserScrollAt < USER_ACTIVE_WINDOW_MS ||
+    now - lastUserPointerAt < USER_ACTIVE_WINDOW_MS
+  );
+}
+
+function clearBgUiSyncTimer() {
+  if (bgUiSyncTimerId !== null) {
+    if (typeof clearTimeout === 'function') {
+      clearTimeout(bgUiSyncTimerId);
+    }
+    bgUiSyncTimerId = null;
+  }
+}
+
+function setAttrIfChanged(el, name, value) {
+  if (!el || typeof el.setAttribute !== 'function') return false;
+  const next = String(value);
+  if (typeof el.getAttribute === 'function' && el.getAttribute(name) === next) {
+    return false;
+  }
+  el.setAttribute(name, next);
+  return true;
+}
+
+function removeAttrIfPresent(el, name) {
+  if (!el || typeof el.removeAttribute !== 'function') return false;
+  if (typeof el.getAttribute === 'function') {
+    const cur = el.getAttribute(name);
+    if (cur === null || cur === undefined) return false;
+  }
+  el.removeAttribute(name);
+  return true;
+}
+
+function addClassIfMissing(el, cls) {
+  const cl = el?.classList;
+  if (!cl || typeof cl.add !== 'function') return false;
+  if (typeof cl.contains === 'function' && cl.contains(cls)) return false;
+  cl.add(cls);
+  return true;
+}
+
+function removeClassIfPresent(el, cls) {
+  const cl = el?.classList;
+  if (!cl || typeof cl.remove !== 'function') return false;
+  if (typeof cl.contains === 'function' && !cl.contains(cls)) return false;
+  cl.remove(cls);
+  return true;
+}
+
+const rootCssVarCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+
+function setRootCssVarIfChanged(docEl, prop, value) {
+  if (!docEl?.style || typeof docEl.style.setProperty !== 'function') return false;
+  const next = String(value);
+  let map = rootCssVarCache?.get(docEl);
+  if (map && map.get(prop) === next) {
+    return false;
+  }
+  if (!map && rootCssVarCache) {
+    map = new Map();
+    rootCssVarCache.set(docEl, map);
+  }
+  map?.set(prop, next);
+  docEl.style.setProperty(prop, next);
+  return true;
+}
+
 function syncPathnameState(pathname) {
   if (typeof pathname === 'string' && lastPathname !== pathname) {
     lastFocusedCellLink = null;
     lastFocusedFilteredCell = null;
     lastFocusedRowTop = null;
     lastPathname = pathname;
+    clearAlignTimers();
+    clearRestoreFocusTimers();
+    clearFilterChunkTimer();
   }
 }
 
@@ -273,9 +401,14 @@ function getFilterNonFollowers() {
 }
 
 function setFilterNonFollowers(enabled, persist = false) {
-  filterNonFollowers = Boolean(enabled);
+  const next = Boolean(enabled);
+  const changed = filterNonFollowers !== next;
+  filterNonFollowers = next;
   if (!filterNonFollowers) {
     lastFocusedFilteredCell = null;
+  }
+  if (changed) {
+    clearFilterChunkTimer();
   }
   if (persist) {
     try {
@@ -852,6 +985,21 @@ function isCompactPillActive(pathname = typeof location !== 'undefined' ? locati
 }
 
 const mutualCellCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+const followerCellCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+const cellRowCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+
+function getCellRow(cell) {
+  if (!cell) return null;
+  const cached = cellRowCache?.get(cell);
+  if (cached && cached.isConnected !== false) {
+    return cached;
+  }
+  const row = cell.closest?.('[data-testid="cellInnerDiv"]') || null;
+  if (row) {
+    cellRowCache?.set(cell, row);
+  }
+  return row;
+}
 
 function isMutualFollowerCell(cell) {
   if (!cell) return false;
@@ -859,6 +1007,7 @@ function isMutualFollowerCell(cell) {
     return mutualCellCache.get(cell);
   }
   let result = false;
+  let canCache = true;
   if (cell.querySelector?.('[data-testid="userFollowIndicator"]')) {
     result = true;
   } else if (!cell.querySelector?.('[data-testid="UserName"]')) {
@@ -872,24 +1021,77 @@ function isMutualFollowerCell(cell) {
         break;
       }
     }
+    if (!result) {
+      canCache = false;
+    }
   }
-  mutualCellCache?.set(cell, result);
+  if (canCache) {
+    mutualCellCache?.set(cell, result);
+  }
   return result;
 }
 
-function isFollowerCellFilteredOut(cell, root = typeof document !== 'undefined' ? document : null) {
-  if (!cell) return false;
-  if (cell.querySelector?.('[data-testid$="-follow"]')) return false;
-  if (cell.querySelector?.('[data-testid$="-unfollow"], [data-testid$="-cancel"]')) return true;
+function resolveNormalizedProfileHref(root = typeof document !== 'undefined' ? document : null) {
   const profileHref = root
     ?.querySelector?.('header nav a[data-testid="AppTabBar_Profile_Link"]')
     ?.getAttribute?.('href');
-  if (profileHref) {
-    const normProfile = profileHref.replace(/\/+$/, '').toLowerCase();
+  return profileHref ? profileHref.replace(/\/+$/, '').toLowerCase() : '';
+}
+
+function isFollowerCellFilteredOut(
+  cell,
+  root = typeof document !== 'undefined' ? document : null,
+  normProfileOverride = undefined
+) {
+  if (!cell) return false;
+  const cached = followerCellCache?.get(cell);
+  if (cached?.btn) {
+    if (
+      cached.btn.isConnected !== false &&
+      (typeof cell.contains !== 'function' || cell.contains(cached.btn))
+    ) {
+      const curTid = cached.btn.getAttribute?.('data-testid') || '';
+      if (curTid && curTid === cached.lastTestId) {
+        return cached.result;
+      }
+    } else {
+      followerCellCache?.delete(cell);
+    }
+  }
+
+  const followBtn = cell.querySelector?.('[data-testid$="-follow"]');
+  if (followBtn) {
+    const tid = followBtn.getAttribute?.('data-testid') || '';
+    if (tid) {
+      followerCellCache?.set(cell, { btn: followBtn, lastTestId: tid, result: false, stateKey: `b:${tid}` });
+    }
+    return false;
+  }
+  const unfollowOrCancelBtn = cell.querySelector?.('[data-testid$="-unfollow"], [data-testid$="-cancel"]');
+  if (unfollowOrCancelBtn) {
+    const tid = unfollowOrCancelBtn.getAttribute?.('data-testid') || '';
+    if (tid) {
+      followerCellCache?.set(cell, { btn: unfollowOrCancelBtn, lastTestId: tid, result: true, stateKey: `b:${tid}` });
+    }
+    return true;
+  }
+
+  const normProfile =
+    typeof normProfileOverride === 'string' ? normProfileOverride : resolveNormalizedProfileHref(root);
+  if (cached?.isSelf && cached.normProfile === normProfile) {
+    return true;
+  }
+  if (normProfile) {
+    const hasHydratedName = Boolean(cell.querySelector?.('[data-testid="UserName"]'));
     const links = cell.querySelectorAll?.('a[href]') || [];
     for (const link of links) {
       const href = (link.getAttribute?.('href') || '').replace(/\/+$/, '').toLowerCase();
-      if (href && href === normProfile) return true;
+      if (href && href === normProfile) {
+        if (hasHydratedName) {
+          followerCellCache?.set(cell, { isSelf: true, normProfile, result: true, stateKey: `self:${normProfile}` });
+        }
+        return true;
+      }
     }
   }
   if (cell.querySelector?.('[data-testid^="UserAvatar-Container-"]')) {
@@ -901,11 +1103,12 @@ function isFollowerCellFilteredOut(cell, root = typeof document !== 'undefined' 
 function shouldFilterOutUserCell(
   cell,
   mode = 'following',
-  root = typeof document !== 'undefined' ? document : null
+  root = typeof document !== 'undefined' ? document : null,
+  normProfileOverride = undefined
 ) {
   if (!cell || !mode) return false;
   if (mode === 'following') return isMutualFollowerCell(cell);
-  if (mode === 'followers') return isFollowerCellFilteredOut(cell, root);
+  if (mode === 'followers') return isFollowerCellFilteredOut(cell, root, normProfileOverride);
   return false;
 }
 
@@ -1061,30 +1264,44 @@ const FOLLOW_BTN_SELECTOR =
 function findTargetUserCell(
   primary,
   root = document,
-  pathname = typeof location !== 'undefined' ? location.pathname : ''
+  pathname = typeof location !== 'undefined' ? location.pathname : '',
+  normProfileOverride = undefined,
+  measureTop = true
 ) {
   const filterMode = getFollowFilterMode(pathname);
   const filterActive = Boolean(filterNonFollowers && filterMode);
+  const normProfile =
+    filterActive && filterMode === 'followers'
+      ? typeof normProfileOverride === 'string'
+        ? normProfileOverride
+        : resolveNormalizedProfileHref(root)
+      : '';
   const active = root.activeElement;
   if (active && primary.contains(active)) {
     const closestCell = active.closest?.('[data-testid="UserCell"]');
     if (closestCell && primary.contains(closestCell)) {
-      if (filterActive && shouldFilterOutUserCell(closestCell, filterMode, root)) return null;
+      if (filterActive && shouldFilterOutUserCell(closestCell, filterMode, root, normProfile)) return null;
+      const cellChanged = lastFocusedFilteredCell !== closestCell;
       lastFocusedFilteredCell = closestCell;
       lastFocusedCellLink = closestCell.querySelector?.('a[role="link"][tabindex="-1"]') || closestCell;
-      const top = getRowVisualTop(closestCell);
-      if (top !== null) lastFocusedRowTop = top;
+      if (measureTop && (cellChanged || lastFocusedRowTop === null)) {
+        const top = getRowVisualTop(closestCell);
+        if (top !== null) lastFocusedRowTop = top;
+      }
       return closestCell;
     }
 
     const innerDiv = active.closest?.('[data-testid="cellInnerDiv"]');
     const innerCell = innerDiv?.querySelector?.('[data-testid="UserCell"]');
     if (innerCell && primary.contains(innerCell)) {
-      if (filterActive && shouldFilterOutUserCell(innerCell, filterMode, root)) return null;
+      if (filterActive && shouldFilterOutUserCell(innerCell, filterMode, root, normProfile)) return null;
+      const cellChanged = lastFocusedFilteredCell !== innerCell;
       lastFocusedFilteredCell = innerCell;
       lastFocusedCellLink = innerCell.querySelector?.('a[role="link"][tabindex="-1"]') || innerCell;
-      const top = getRowVisualTop(innerCell);
-      if (top !== null) lastFocusedRowTop = top;
+      if (measureTop && (cellChanged || lastFocusedRowTop === null)) {
+        const top = getRowVisualTop(innerCell);
+        if (top !== null) lastFocusedRowTop = top;
+      }
       return innerCell;
     }
   }
@@ -1092,7 +1309,7 @@ function findTargetUserCell(
   if (
     lastFocusedFilteredCell &&
     primary.contains(lastFocusedFilteredCell) &&
-    (!filterActive || !shouldFilterOutUserCell(lastFocusedFilteredCell, filterMode, root))
+    (!filterActive || !shouldFilterOutUserCell(lastFocusedFilteredCell, filterMode, root, normProfile))
   ) {
     return lastFocusedFilteredCell;
   }
@@ -1104,7 +1321,7 @@ function findTargetUserCell(
         .closest?.('[data-testid="cellInnerDiv"]')
         ?.querySelector?.('[data-testid="UserCell"]');
     if (rememberedCell && primary.contains(rememberedCell)) {
-      if (filterActive && shouldFilterOutUserCell(rememberedCell, filterMode, root)) return null;
+      if (filterActive && shouldFilterOutUserCell(rememberedCell, filterMode, root, normProfile)) return null;
       return rememberedCell;
     }
   }
@@ -1113,8 +1330,10 @@ function findTargetUserCell(
 }
 
 function getFollowingCells(primary, filterActive, filterMode = 'following', root = document) {
+  const normProfile =
+    filterActive && filterMode === 'followers' ? resolveNormalizedProfileHref(root) : '';
   const all = Array.from(primary?.querySelectorAll?.('[data-testid="UserCell"]') || []);
-  return filterActive ? all.filter((cell) => !shouldFilterOutUserCell(cell, filterMode, root)) : all;
+  return filterActive ? all.filter((cell) => !shouldFilterOutUserCell(cell, filterMode, root, normProfile)) : all;
 }
 
 function getStickyHeaderBottom(primary, root = document) {
@@ -1132,34 +1351,39 @@ function getStickyHeaderBottom(primary, root = document) {
 }
 
 function alignFollowingCellBelowHeader(targetCell, primary, root = document) {
+  clearAlignTimers();
   if (!targetCell || typeof window === 'undefined' || typeof window.scrollBy !== 'function') return;
-  const row = targetCell.closest?.('[data-testid="cellInnerDiv"]') || targetCell;
+  const row = getCellRow(targetCell) || targetCell;
   if (typeof row.getBoundingClientRect !== 'function') return;
   const applyAlign = () => {
-    if (row.isConnected === false) return;
+    if (row.isConnected === false) return false;
     const rect = row.getBoundingClientRect();
-    if (!rect || (rect.top === 0 && rect.bottom === 0 && rect.height === 0)) return;
+    if (!rect || (rect.top === 0 && rect.bottom === 0 && rect.height === 0)) return false;
     const headerBottom = getStickyHeaderBottom(primary, root);
     const delta = rect.top - headerBottom;
     if (Math.abs(delta) > 1) {
       window.scrollBy(0, delta);
+      return true;
     }
+    return false;
   };
   applyAlign();
   if (typeof setTimeout === 'function') {
-    for (const ms of [35, 90, 150]) {
-      setTimeout(() => {
-        applyAlign();
-        if (typeof document !== 'undefined' && root === document) {
-          syncUiHints();
+    for (const ms of [35, 90, 160, 240]) {
+      const timerId = setTimeout(() => {
+        alignTimerIds = alignTimerIds.filter((id) => id !== timerId);
+        const scrolled = applyAlign();
+        if ((scrolled || ms === 240) && typeof document !== 'undefined' && root === document) {
+          scheduleUiSync();
         }
       }, ms);
+      alignTimerIds.push(timerId);
     }
   }
 }
 
 function getRowVisualTop(cell) {
-  const row = cell?.closest?.('[data-testid="cellInnerDiv"]') || cell;
+  const row = getCellRow(cell) || cell;
   if (typeof row?.getBoundingClientRect === 'function') {
     const r = row.getBoundingClientRect();
     if (r && !(r.top === 0 && r.bottom === 0 && r.height === 0)) {
@@ -1180,8 +1404,13 @@ function stepFollowingCell(
   const filterMode = getFollowFilterMode(pathname);
   const filterActive = Boolean(filterNonFollowers && filterMode);
   const rawCells = getFollowingCells(primary, filterActive, filterMode || 'following', root);
+  const topByCell = new Map();
   const cells = rawCells
-    .map((cell, domIdx) => ({ cell, domIdx, top: getRowVisualTop(cell) }))
+    .map((cell, domIdx) => {
+      const top = getRowVisualTop(cell);
+      topByCell.set(cell, top);
+      return { cell, domIdx, top };
+    })
     .sort((a, b) => {
       if (a.top !== null && b.top !== null && Math.abs(a.top - b.top) > 0.5) {
         return a.top - b.top;
@@ -1196,23 +1425,24 @@ function stepFollowingCell(
     return true;
   }
 
+  const getCachedTop = (cell) => (topByCell.has(cell) ? topByCell.get(cell) : getRowVisualTop(cell));
   const currentCell =
     lastFocusedFilteredCell && cells.includes(lastFocusedFilteredCell)
       ? lastFocusedFilteredCell
       : findTargetUserCell(primary, root, pathname);
   const currentIdx = currentCell ? cells.indexOf(currentCell) : -1;
-  const currentTop = currentCell ? getRowVisualTop(currentCell) : null;
+  const currentTop = currentCell ? getCachedTop(currentCell) : null;
   let nextIdx = 0;
   if (code === 'KeyJ') {
     if (currentIdx < 0) {
       if (lastFocusedRowTop !== null) {
         const byTop = cells.findIndex((c) => {
-          const t = getRowVisualTop(c);
+          const t = getCachedTop(c);
           return t !== null && t >= lastFocusedRowTop - 2;
         });
         if (byTop >= 0) {
           nextIdx = byTop;
-        } else if (cells.some((c) => getRowVisualTop(c) !== null)) {
+        } else if (cells.some((c) => getCachedTop(c) !== null)) {
           nextIdx = cells.length - 1;
           if (typeof window !== 'undefined' && typeof window.scrollBy === 'function') {
             window.scrollBy(0, 480);
@@ -1228,7 +1458,7 @@ function stepFollowingCell(
       if (currentTop !== null) {
         const byPos = cells.findIndex((c, idx) => {
           if (idx <= currentIdx) return false;
-          const t = getRowVisualTop(c);
+          const t = getCachedTop(c);
           return t !== null && t > currentTop + 2;
         });
         if (byPos >= 0) nextIdx = byPos;
@@ -1244,7 +1474,7 @@ function stepFollowingCell(
       nextIdx = currentIdx - 1;
       if (currentTop !== null) {
         for (let idx = currentIdx - 1; idx >= 0; idx--) {
-          const t = getRowVisualTop(cells[idx]);
+          const t = getCachedTop(cells[idx]);
           if (t !== null && t < currentTop - 2) {
             nextIdx = idx;
             break;
@@ -1254,7 +1484,7 @@ function stepFollowingCell(
     } else if (currentIdx < 0 && lastFocusedRowTop !== null) {
       nextIdx = 0;
       for (let idx = cells.length - 1; idx >= 0; idx--) {
-        const t = getRowVisualTop(cells[idx]);
+        const t = getCachedTop(cells[idx]);
         if (t !== null && t < lastFocusedRowTop - 2) {
           nextIdx = idx;
           break;
@@ -1272,7 +1502,7 @@ function stepFollowingCell(
 
   const targetCell = cells[nextIdx];
   if (!targetCell) return false;
-  const row = targetCell.closest?.('[data-testid="cellInnerDiv"]');
+  const row = getCellRow(targetCell);
   const focusTarget =
     targetCell.querySelector?.('a[role="link"][tabindex="-1"]') ||
     (row && row !== targetCell ? row.querySelector?.('[tabindex="0"], [tabindex="-1"]') : null) ||
@@ -1295,10 +1525,10 @@ function stepFollowingCell(
       root.activeElement = focusTarget;
     }
   } catch (_) {}
-  syncFollowingFilter(root, pathname);
   if (typeof document !== 'undefined' && root === document) {
     syncUiHints();
   } else {
+    syncFollowingFilter(root, pathname);
     scheduleUiSync();
   }
   return true;
@@ -1353,7 +1583,8 @@ function findStatusFollowButton(root, primary, statusUsername) {
 
 function findProfileFollowButton(
   root = document,
-  pathname = typeof location !== 'undefined' ? location.pathname : ''
+  pathname = typeof location !== 'undefined' ? location.pathname : '',
+  precomputedTargetCell = undefined
 ) {
   syncPathnameState(pathname);
 
@@ -1369,7 +1600,10 @@ function findProfileFollowButton(
 
   // 1. On /verified_followers, /followers, /following: target the focused/hovered/remembered UserCell
   if (isFollowListPage(pathname)) {
-    const cell = findTargetUserCell(primary, root, pathname);
+    const cell =
+      precomputedTargetCell !== undefined
+        ? precomputedTargetCell
+        : findTargetUserCell(primary, root, pathname);
     if (!cell) return null;
     const link = cell.querySelector?.('a[role="link"][tabindex="-1"]') || cell;
     lastFocusedCellLink = link;
@@ -1470,15 +1704,7 @@ function isAlreadyNativeAsciiEvent(e, spec) {
   return true;
 }
 
-function ensureStyles() {
-  if (typeof document === 'undefined' || !document.head) return;
-  let style = document.getElementById('xfs-styles');
-  if (!style) {
-    style = document.createElement('style');
-    style.id = 'xfs-styles';
-    document.head.appendChild(style);
-  }
-  const css = `
+const BASE_UI_HINTS_CSS = `
     /* 1. Tweet action bar buttons (r, t, l, b, s) matching each button's icon & count color */
     article [role="group"] button[data-testid="reply"] > div::before,
     article [role="group"] button[data-testid="retweet"] > div::before,
@@ -1658,20 +1884,21 @@ function ensureStyles() {
     a[role="tab"][href$="/following"] div[dir="ltr"] > span:first-of-type::after { content: "g o"; }
     [data-xfs-home-idx]::after { content: attr(data-xfs-home-idx); align-self: center; font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif; font-size: 12px; font-weight: 600; color: currentColor; margin-left: 6px; pointer-events: none; user-select: none; }
   `;
-  if (style.textContent !== css) {
-    style.textContent = css;
+
+function ensureStyles() {
+  if (typeof document === 'undefined' || !document.head) return;
+  let style = document.getElementById('xfs-styles');
+  if (!style) {
+    style = document.createElement('style');
+    style.id = 'xfs-styles';
+    document.head.appendChild(style);
+  }
+  if (style.textContent !== BASE_UI_HINTS_CSS) {
+    style.textContent = BASE_UI_HINTS_CSS;
   }
 }
 
-function ensureFilterStyles(root = document) {
-  if (!root || !root.head || typeof root.createElement !== 'function') return;
-  let style = root.getElementById?.('xfs-filter-styles');
-  if (!style) {
-    style = root.createElement('style');
-    style.id = 'xfs-filter-styles';
-    root.head.appendChild(style);
-  }
-  const css = `
+const FILTER_STYLES_CSS = `
     .xfs-filter-non-followers[data-xfs-filter-mode="following"] [data-testid="cellInnerDiv"]:has([data-testid="userFollowIndicator"], [data-xfs-mutual="true"]),
     .xfs-filter-non-followers[data-xfs-filter-mode="followers"] [data-testid="cellInnerDiv"]:has([data-testid$="-unfollow"], [data-testid$="-cancel"], [data-xfs-hidden="true"]),
     .xfs-filter-non-followers [data-testid="cellInnerDiv"][data-xfs-hidden="true"] {
@@ -1681,6 +1908,9 @@ function ensureFilterStyles(root = document) {
       margin: 0 !important;
       border: 0 !important;
       overflow: hidden !important;
+      content-visibility: hidden !important;
+      contain: layout style paint !important;
+      pointer-events: none !important;
     }
     .xfs-filter-non-followers[data-xfs-filter-mode="following"] [data-testid="cellInnerDiv"]:has([data-testid="userFollowIndicator"], [data-xfs-mutual="true"]) > *,
     .xfs-filter-non-followers[data-xfs-filter-mode="following"] [data-testid="UserCell"]:has([data-testid="userFollowIndicator"]),
@@ -1700,6 +1930,9 @@ function ensureFilterStyles(root = document) {
         margin: 0 !important;
         border: 0 !important;
         overflow: hidden !important;
+        content-visibility: hidden !important;
+        contain: layout style paint !important;
+        pointer-events: none !important;
       }
       .xfs-filter-non-followers[data-xfs-filter-mode="following"] [data-testid="cellInnerDiv"].xfs-mutual-row > *,
       .xfs-filter-non-followers[data-xfs-filter-mode="following"] [data-testid="UserCell"].xfs-mutual-cell,
@@ -1788,8 +2021,17 @@ function ensureFilterStyles(root = document) {
       color: #ffffff;
     }
   `;
-  if (style.textContent !== css) {
-    style.textContent = css;
+
+function ensureFilterStyles(root = document) {
+  if (!root || !root.head || typeof root.createElement !== 'function') return;
+  let style = root.getElementById?.('xfs-filter-styles');
+  if (!style) {
+    style = root.createElement('style');
+    style.id = 'xfs-filter-styles';
+    root.head.appendChild(style);
+  }
+  if (style.textContent !== FILTER_STYLES_CSS) {
+    style.textContent = FILTER_STYLES_CSS;
   }
 }
 
@@ -1807,9 +2049,86 @@ function formatFollowingFilterLabel(active, lang = detectUiLang(), mode = 'follo
   return `Non-followers only: ${stateText}`;
 }
 
+const rootsWithFilterState = typeof WeakSet !== 'undefined' ? new WeakSet() : null;
+const rootFilterEpochMap = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+const focusedCellByRoot = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+const cellAppliedFilterCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+
+function peekCachedCellFilterState(cell, filterMode, normProfile) {
+  if (!cell) return null;
+  if (filterMode === 'following') {
+    if (mutualCellCache?.has(cell)) {
+      const res = Boolean(mutualCellCache.get(cell));
+      return { filteredOut: res, stateKey: res ? 'm:1' : 'm:0' };
+    }
+    return null;
+  }
+  if (filterMode === 'followers') {
+    const fc = followerCellCache?.get(cell);
+    if (!fc) return null;
+    if (
+      fc.btn &&
+      fc.btn.isConnected !== false &&
+      (typeof cell.contains !== 'function' || cell.contains(fc.btn))
+    ) {
+      const curTid = fc.btn.getAttribute?.('data-testid') || '';
+      if (curTid && curTid === fc.lastTestId) {
+        return { filteredOut: Boolean(fc.result), stateKey: fc.stateKey };
+      }
+      return null;
+    }
+    if (fc.isSelf && fc.normProfile === normProfile) {
+      return { filteredOut: true, stateKey: fc.stateKey };
+    }
+  }
+  return null;
+}
+
+function scheduleFilterChunkContinuation(root, pathname, nextStartIndex) {
+  if (typeof setTimeout !== 'function') return;
+  if (typeof document !== 'undefined' && root === document && document.hidden) {
+    pendingSyncOnVisible = true;
+    return;
+  }
+  if (filterChunkTimerId !== null && typeof clearTimeout === 'function') {
+    clearTimeout(filterChunkTimerId);
+    filterChunkTimerId = null;
+  }
+  const gen = ++filterChunkGeneration;
+  const delay = isUserActivelyInteracting() ? FILTER_INTERACTION_BACKOFF_MS : FILTER_CHUNK_YIELD_MS;
+  filterChunkTimerId = setTimeout(() => {
+    filterChunkTimerId = null;
+    if (gen !== filterChunkGeneration) return;
+    if (typeof document !== 'undefined' && root === document) {
+      if (document.hidden) {
+        pendingSyncOnVisible = true;
+        return;
+      }
+      const curPath = typeof location !== 'undefined' ? location.pathname : pathname;
+      if (curPath !== pathname || !getFollowFilterMode(curPath)) {
+        return;
+      }
+      isApplyingDomSync = true;
+      try {
+        syncFollowingFilter(root, curPath, { background: true, startIndex: nextStartIndex });
+      } finally {
+        isApplyingDomSync = false;
+        lastUiSyncFinishedAt = Date.now();
+      }
+    } else {
+      syncFollowingFilter(root, pathname, {
+        background: true,
+        startIndex: nextStartIndex,
+        allowChunk: true
+      });
+    }
+  }, delay);
+}
+
 function syncFollowingFilter(
   root = document,
-  pathname = typeof location !== 'undefined' ? location.pathname : ''
+  pathname = typeof location !== 'undefined' ? location.pathname : '',
+  options = null
 ) {
   syncPathnameState(pathname);
   if (!root || !root.documentElement) {
@@ -1820,49 +2139,81 @@ function syncFollowingFilter(
   const primary = root.querySelector?.('[data-testid="primaryColumn"]');
 
   if (!filterMode) {
-    root.getElementById?.('xfs-following-filter-bar')?.remove?.();
-    root.getElementById?.('xfs-filter-styles')?.remove?.();
-    root.documentElement.removeAttribute?.('data-xfs-filter-non-followers');
-    root.documentElement.removeAttribute?.('data-xfs-filter-mode');
-    primary?.classList?.remove?.('xfs-filter-non-followers');
-    primary?.removeAttribute?.('data-xfs-filter-non-followers');
-    primary?.removeAttribute?.('data-xfs-filter-mode');
+    if (typeof document !== 'undefined' && root === document) {
+      clearFilterChunkTimer();
+    }
+    const hasFilterAttrs =
+      rootsWithFilterState?.has(root) ||
+      root.documentElement.getAttribute?.('data-xfs-filter-mode') != null ||
+      root.documentElement.getAttribute?.('data-xfs-filter-non-followers') != null ||
+      primary?.getAttribute?.('data-xfs-filter-mode') != null ||
+      primary?.getAttribute?.('data-xfs-filter-non-followers') != null;
+    if (!hasFilterAttrs) {
+      return { total: 0, nonFollowers: 0, mutuals: 0, active: false };
+    }
+    rootsWithFilterState?.delete(root);
+    focusedCellByRoot?.delete(root);
+    if (rootFilterEpochMap) {
+      rootFilterEpochMap.set(root, (rootFilterEpochMap.get(root) || 0) + 1);
+    }
+    const barEl = root.getElementById?.('xfs-following-filter-bar');
+    if (!barEl?.id || barEl.id === 'xfs-following-filter-bar') {
+      barEl?.remove?.();
+    }
+    const filterStyleEl = root.getElementById?.('xfs-filter-styles');
+    if (!filterStyleEl?.id || filterStyleEl.id === 'xfs-filter-styles') {
+      filterStyleEl?.remove?.();
+    }
+    removeAttrIfPresent(root.documentElement, 'data-xfs-filter-non-followers');
+    removeAttrIfPresent(root.documentElement, 'data-xfs-filter-mode');
+    removeClassIfPresent(primary, 'xfs-filter-non-followers');
+    removeAttrIfPresent(primary, 'data-xfs-filter-non-followers');
+    removeAttrIfPresent(primary, 'data-xfs-filter-mode');
     for (const el of root.querySelectorAll?.('[data-xfs-mutual="true"], [data-xfs-hidden="true"], [data-xfs-focused="true"]') || []) {
-      el.removeAttribute?.('data-xfs-mutual');
-      el.removeAttribute?.('data-xfs-hidden');
-      el.removeAttribute?.('data-xfs-focused');
-      el.classList?.remove?.('xfs-mutual-cell');
-      el.classList?.remove?.('xfs-mutual-row');
+      removeAttrIfPresent(el, 'data-xfs-mutual');
+      removeAttrIfPresent(el, 'data-xfs-hidden');
+      removeAttrIfPresent(el, 'data-xfs-focused');
+      removeClassIfPresent(el, 'xfs-mutual-cell');
+      removeClassIfPresent(el, 'xfs-mutual-row');
     }
     return { total: 0, nonFollowers: 0, mutuals: 0, active: false };
   }
 
+  rootsWithFilterState?.add(root);
+  const epoch = rootFilterEpochMap?.get(root) || 0;
+
   ensureFilterStyles(root);
-  if (root.documentElement.getAttribute?.('data-xfs-filter-mode') !== filterMode) {
-    root.documentElement.setAttribute?.('data-xfs-filter-mode', filterMode);
-  }
-  if (primary?.getAttribute?.('data-xfs-filter-mode') !== filterMode) {
-    primary?.setAttribute?.('data-xfs-filter-mode', filterMode);
-  }
+  setAttrIfChanged(root.documentElement, 'data-xfs-filter-mode', filterMode);
+  setAttrIfChanged(primary, 'data-xfs-filter-mode', filterMode);
   if (active) {
-    root.documentElement.setAttribute?.('data-xfs-filter-non-followers', 'true');
-    primary?.classList?.add?.('xfs-filter-non-followers');
-    primary?.setAttribute?.('data-xfs-filter-non-followers', 'true');
+    setAttrIfChanged(root.documentElement, 'data-xfs-filter-non-followers', 'true');
+    addClassIfMissing(primary, 'xfs-filter-non-followers');
+    setAttrIfChanged(primary, 'data-xfs-filter-non-followers', 'true');
   } else {
-    root.documentElement.removeAttribute?.('data-xfs-filter-non-followers');
-    primary?.classList?.remove?.('xfs-filter-non-followers');
-    primary?.removeAttribute?.('data-xfs-filter-non-followers');
+    removeAttrIfPresent(root.documentElement, 'data-xfs-filter-non-followers');
+    removeClassIfPresent(primary, 'xfs-filter-non-followers');
+    removeAttrIfPresent(primary, 'data-xfs-filter-non-followers');
   }
 
   if (!primary) {
+    if (typeof document !== 'undefined' && root === document) {
+      clearFilterChunkTimer();
+    }
     return { total: 0, nonFollowers: 0, mutuals: 0, active };
   }
+
+  const normProfile =
+    filterMode === 'followers'
+      ? typeof options?.normProfile === 'string'
+        ? options.normProfile
+        : resolveNormalizedProfileHref(root)
+      : '';
 
   if (active && lastFocusedCellLink) {
     const focusedCell =
       lastFocusedCellLink.closest?.('[data-testid="UserCell"]') ||
       lastFocusedCellLink.closest?.('[data-testid="cellInnerDiv"]')?.querySelector?.('[data-testid="UserCell"]');
-    if (focusedCell && shouldFilterOutUserCell(focusedCell, filterMode, root)) {
+    if (focusedCell && shouldFilterOutUserCell(focusedCell, filterMode, root, normProfile)) {
       if (lastFocusedRowTop === null) {
         const prevTop = getRowVisualTop(focusedCell);
         if (prevTop !== null) lastFocusedRowTop = prevTop;
@@ -1870,7 +2221,7 @@ function syncFollowingFilter(
       lastFocusedCellLink = null;
     }
   }
-  if (active && lastFocusedFilteredCell && shouldFilterOutUserCell(lastFocusedFilteredCell, filterMode, root)) {
+  if (active && lastFocusedFilteredCell && shouldFilterOutUserCell(lastFocusedFilteredCell, filterMode, root, normProfile)) {
     if (lastFocusedRowTop === null) {
       const prevTop = getRowVisualTop(lastFocusedFilteredCell);
       if (prevTop !== null) lastFocusedRowTop = prevTop;
@@ -1878,51 +2229,146 @@ function syncFollowingFilter(
     lastFocusedFilteredCell = null;
   }
 
-  const activeCell = findTargetUserCell(primary, root, pathname);
+  const activeCell =
+    options && 'activeCell' in options
+      ? options.activeCell
+      : findTargetUserCell(primary, root, pathname, normProfile);
+
+  const nextFocusedCell =
+    activeCell && (!active || !shouldFilterOutUserCell(activeCell, filterMode, root, normProfile))
+      ? activeCell
+      : null;
+  const nextFocusedRow = nextFocusedCell ? getCellRow(nextFocusedCell) : null;
+  const prevFocused = focusedCellByRoot?.get(root) || null;
+  if (prevFocused) {
+    if (prevFocused.cell && prevFocused.cell !== nextFocusedCell) {
+      removeAttrIfPresent(prevFocused.cell, 'data-xfs-focused');
+    }
+    if (prevFocused.row && prevFocused.row !== nextFocusedRow) {
+      removeAttrIfPresent(prevFocused.row, 'data-xfs-focused');
+    }
+  }
+  if (nextFocusedCell) {
+    setAttrIfChanged(nextFocusedCell, 'data-xfs-focused', 'true');
+    if (nextFocusedRow) {
+      setAttrIfChanged(nextFocusedRow, 'data-xfs-focused', 'true');
+    }
+    focusedCellByRoot?.set(root, { cell: nextFocusedCell, row: nextFocusedRow });
+  } else {
+    focusedCellByRoot?.delete(root);
+  }
+
   const cells = Array.from(primary.querySelectorAll?.('[data-testid="UserCell"]') || []);
+  const isBackground = Boolean(options?.background);
+  const canChunk = Boolean(
+    (typeof document !== 'undefined' && root === document && typeof setTimeout === 'function') ||
+      options?.allowChunk
+  );
+  const workBudget = isBackground ? BG_CELL_WORK_BUDGET : DIRECT_CELL_WORK_BUDGET;
+  const startIndex = typeof options?.startIndex === 'number' ? options.startIndex : 0;
+  const sliceStartMs = canChunk && isBackground ? nowPerfMs() : 0;
+
   let mutuals = 0;
-  for (const cell of cells) {
-    const filteredOut = shouldFilterOutUserCell(cell, filterMode, root);
-    const row = cell.closest?.('[data-testid="cellInnerDiv"]');
-    const isFocusedCell = Boolean(activeCell && cell === activeCell && (!active || !filteredOut));
-    if (isFocusedCell) {
-      if (cell.getAttribute?.('data-xfs-focused') !== 'true') {
-        cell.setAttribute?.('data-xfs-focused', 'true');
-      }
-      if (row && row.getAttribute?.('data-xfs-focused') !== 'true') {
-        row.setAttribute?.('data-xfs-focused', 'true');
-      }
-    } else {
-      cell.removeAttribute?.('data-xfs-focused');
-      row?.removeAttribute?.('data-xfs-focused');
+  let dirtyProcessed = 0;
+  let nextChunkStartIndex = -1;
+
+  for (let idx = 0; idx < cells.length; idx++) {
+    const cell = cells[idx];
+    const applied = cellAppliedFilterCache?.get(cell);
+    const peek = peekCachedCellFilterState(cell, filterMode, normProfile);
+
+    if (
+      peek &&
+      applied &&
+      applied.epoch === epoch &&
+      applied.mode === filterMode &&
+      applied.active === active &&
+      applied.stateKey === peek.stateKey
+    ) {
+      if (peek.filteredOut) mutuals++;
+      continue;
     }
+
+    if (idx < startIndex) {
+      if ((peek ? peek.filteredOut : applied?.filteredOut) === true) {
+        mutuals++;
+      }
+      continue;
+    }
+
+    if (canChunk && nextChunkStartIndex !== -1) {
+      if ((peek ? peek.filteredOut : applied?.filteredOut) === true) {
+        mutuals++;
+      }
+      continue;
+    }
+
+    if (
+      canChunk &&
+      (dirtyProcessed >= workBudget ||
+        (isBackground && dirtyProcessed >= 8 && nowPerfMs() - sliceStartMs >= BG_CELL_TIME_BUDGET_MS))
+    ) {
+      nextChunkStartIndex = idx;
+      if ((peek ? peek.filteredOut : applied?.filteredOut) === true) {
+        mutuals++;
+      }
+      continue;
+    }
+
+    dirtyProcessed++;
+    const filteredOut = peek
+      ? peek.filteredOut
+      : shouldFilterOutUserCell(cell, filterMode, root, normProfile);
+    const afterPeek = peek || peekCachedCellFilterState(cell, filterMode, normProfile);
+    const row = getCellRow(cell);
+
+    if (!applied && cell !== nextFocusedCell) {
+      removeAttrIfPresent(cell, 'data-xfs-focused');
+      removeAttrIfPresent(row, 'data-xfs-focused');
+    }
+
     if (filterMode === 'following' && filteredOut) {
-      if (cell.getAttribute?.('data-xfs-mutual') !== 'true') {
-        cell.setAttribute?.('data-xfs-mutual', 'true');
-      }
-      cell.classList?.add?.('xfs-mutual-cell');
-      row?.classList?.add?.('xfs-mutual-row');
+      setAttrIfChanged(cell, 'data-xfs-mutual', 'true');
+      addClassIfMissing(cell, 'xfs-mutual-cell');
+      addClassIfMissing(row, 'xfs-mutual-row');
     } else {
-      cell.removeAttribute?.('data-xfs-mutual');
-      cell.classList?.remove?.('xfs-mutual-cell');
-      row?.classList?.remove?.('xfs-mutual-row');
+      removeAttrIfPresent(cell, 'data-xfs-mutual');
+      removeClassIfPresent(cell, 'xfs-mutual-cell');
+      removeClassIfPresent(row, 'xfs-mutual-row');
     }
+
     if (filteredOut) {
       mutuals++;
       if (active) {
-        if (cell.getAttribute?.('data-xfs-hidden') !== 'true') {
-          cell.setAttribute?.('data-xfs-hidden', 'true');
-        }
-        if (row && row.getAttribute?.('data-xfs-hidden') !== 'true') {
-          row.setAttribute?.('data-xfs-hidden', 'true');
-        }
+        setAttrIfChanged(cell, 'data-xfs-hidden', 'true');
+        setAttrIfChanged(row, 'data-xfs-hidden', 'true');
       } else {
-        cell.removeAttribute?.('data-xfs-hidden');
-        row?.removeAttribute?.('data-xfs-hidden');
+        removeAttrIfPresent(cell, 'data-xfs-hidden');
+        removeAttrIfPresent(row, 'data-xfs-hidden');
       }
     } else {
-      cell.removeAttribute?.('data-xfs-hidden');
-      row?.removeAttribute?.('data-xfs-hidden');
+      removeAttrIfPresent(cell, 'data-xfs-hidden');
+      removeAttrIfPresent(row, 'data-xfs-hidden');
+    }
+
+    if (afterPeek?.stateKey) {
+      cellAppliedFilterCache?.set(cell, {
+        epoch,
+        mode: filterMode,
+        active,
+        stateKey: afterPeek.stateKey,
+        filteredOut
+      });
+    } else {
+      cellAppliedFilterCache?.delete(cell);
+    }
+  }
+
+  if (canChunk) {
+    if (nextChunkStartIndex >= 0) {
+      scheduleFilterChunkContinuation(root, pathname, nextChunkStartIndex);
+    } else {
+      clearFilterChunkTimer();
     }
   }
 
@@ -1932,7 +2378,13 @@ function syncFollowingFilter(
 
   if (typeof root.createElement === 'function' && (primary.appendChild || primary.insertBefore)) {
     let bar = root.getElementById?.('xfs-following-filter-bar') || primary.querySelector?.('#xfs-following-filter-bar');
+    if (bar && bar.id && bar.id !== 'xfs-following-filter-bar') {
+      bar = primary.querySelector?.('#xfs-following-filter-bar') || null;
+    }
     let btn = root.getElementById?.('xfs-non-follower-toggle') || bar?.querySelector?.('#xfs-non-follower-toggle');
+    if (btn && btn.id && btn.id !== 'xfs-non-follower-toggle') {
+      btn = bar?.querySelector?.('#xfs-non-follower-toggle') || null;
+    }
     if (!bar) {
       bar = root.createElement('div');
       bar.id = 'xfs-following-filter-bar';
@@ -1958,20 +2410,12 @@ function syncFollowingFilter(
       }
     }
     const activeStr = String(active);
-    if (bar.getAttribute?.('data-xfs-active') !== activeStr) {
-      bar.setAttribute?.('data-xfs-active', activeStr);
-    }
-    if (bar.getAttribute?.('data-xfs-filter-mode') !== filterMode) {
-      bar.setAttribute?.('data-xfs-filter-mode', filterMode);
-    }
+    setAttrIfChanged(bar, 'data-xfs-active', activeStr);
+    setAttrIfChanged(bar, 'data-xfs-filter-mode', filterMode);
     if (btn) {
       const hintStr = String(Boolean(showUiHints));
-      if (btn.getAttribute?.('aria-pressed') !== activeStr) {
-        btn.setAttribute?.('aria-pressed', activeStr);
-      }
-      if (btn.getAttribute?.('data-xfs-hint') !== hintStr) {
-        btn.setAttribute?.('data-xfs-hint', hintStr);
-      }
+      setAttrIfChanged(btn, 'aria-pressed', activeStr);
+      setAttrIfChanged(btn, 'data-xfs-hint', hintStr);
       if (btn.textContent !== labelText) {
         btn.textContent = labelText;
       }
@@ -1981,15 +2425,7 @@ function syncFollowingFilter(
   return { total, nonFollowers, mutuals, active };
 }
 
-function ensureCompactPillStyles(root = document) {
-  if (!root || !root.head || typeof root.createElement !== 'function') return;
-  let style = root.getElementById?.('xfs-pill-styles');
-  if (!style) {
-    style = root.createElement('style');
-    style.id = 'xfs-pill-styles';
-    root.head.appendChild(style);
-  }
-  const css = `
+const COMPACT_PILL_STYLES_CSS = `
     /* Shared: hide the 3 overlapping profile avatars inside the floating "게시됨" pill */
     [data-xfs-pill-avatars="true"],
     html[data-xfs-compact-pill] button:has([data-testid="pillLabel"]) > div > div:not([data-testid="pillLabel"]),
@@ -2176,8 +2612,20 @@ function ensureCompactPillStyles(root = document) {
       user-select: none;
     }
   `;
-  if (style.textContent !== css) {
-    style.textContent = css;
+
+function ensureCompactPillStyles(root = document) {
+  if (!root || !root.head || typeof root.createElement !== 'function') return;
+  let style = root.getElementById?.('xfs-pill-styles');
+  if (style && style.id && style.id !== 'xfs-pill-styles') {
+    style = null;
+  }
+  if (!style) {
+    style = root.createElement('style');
+    style.id = 'xfs-pill-styles';
+    root.head.appendChild(style);
+  }
+  if (style.textContent !== COMPACT_PILL_STYLES_CSS) {
+    style.textContent = COMPACT_PILL_STYLES_CSS;
   }
 }
 
@@ -2192,13 +2640,15 @@ function clearCompactPillNodeAttributes(root) {
   for (const el of root.querySelectorAll?.(
     '[data-xfs-pill-align], [data-xfs-pill-status], [data-xfs-pill-btn], [data-xfs-pill-avatars], [data-xfs-label]'
   ) || []) {
-    el.removeAttribute?.('data-xfs-pill-align');
-    el.removeAttribute?.('data-xfs-pill-status');
-    el.removeAttribute?.('data-xfs-pill-btn');
-    el.removeAttribute?.('data-xfs-pill-avatars');
-    el.removeAttribute?.('data-xfs-label');
+    removeAttrIfPresent(el, 'data-xfs-pill-align');
+    removeAttrIfPresent(el, 'data-xfs-pill-status');
+    removeAttrIfPresent(el, 'data-xfs-pill-btn');
+    removeAttrIfPresent(el, 'data-xfs-pill-avatars');
+    removeAttrIfPresent(el, 'data-xfs-label');
   }
 }
+
+const rootsWithPillState = typeof WeakSet !== 'undefined' ? new WeakSet() : null;
 
 function syncCompactPill(
   root = document,
@@ -2209,112 +2659,237 @@ function syncCompactPill(
   }
   const active = isCompactPillActive(pathname);
   if (!active) {
-    root.getElementById?.('xfs-pill-styles')?.remove?.();
-    root.documentElement.removeAttribute?.('data-xfs-compact-pill');
+    const hasPillState =
+      rootsWithPillState?.has(root) ||
+      root.documentElement.getAttribute?.('data-xfs-compact-pill') != null;
+    if (!hasPillState) {
+      return { active: false, design: compactPillDesign };
+    }
+    rootsWithPillState?.delete(root);
+    const pillStyleEl = root.getElementById?.('xfs-pill-styles');
+    if (!pillStyleEl?.id || pillStyleEl.id === 'xfs-pill-styles') {
+      pillStyleEl?.remove?.();
+    }
+    removeAttrIfPresent(root.documentElement, 'data-xfs-compact-pill');
     clearCompactPillNodeAttributes(root);
     return { active: false, design: compactPillDesign };
   }
+  rootsWithPillState?.add(root);
   const pills = Array.from(root.querySelectorAll?.('[data-testid="pillLabel"]') || []);
   ensureCompactPillStyles(root);
   const design = normalizeCompactPillDesign(compactPillDesign);
-  if (root.documentElement.getAttribute?.('data-xfs-compact-pill') !== design) {
-    root.documentElement.setAttribute?.('data-xfs-compact-pill', design);
-  }
+  setAttrIfChanged(root.documentElement, 'data-xfs-compact-pill', design);
   const localized = formatCompactPillLabel(detectUiLang(root));
   for (const pill of pills) {
     const btn = pill.closest?.('button, [role="button"]');
     const statusDiv = pill.closest?.('[role="status"]') || btn?.parentElement;
     const alignWrap = statusDiv?.parentElement;
-    if (btn && btn.getAttribute?.('data-xfs-pill-btn') !== design) {
-      btn.setAttribute?.('data-xfs-pill-btn', design);
-    }
-    if (statusDiv && statusDiv.getAttribute?.('data-xfs-pill-status') !== design) {
-      statusDiv.setAttribute?.('data-xfs-pill-status', design);
-    }
-    if (alignWrap && alignWrap.getAttribute?.('data-xfs-pill-align') !== design) {
-      alignWrap.setAttribute?.('data-xfs-pill-align', design);
-    }
+    setAttrIfChanged(btn, 'data-xfs-pill-btn', design);
+    setAttrIfChanged(statusDiv, 'data-xfs-pill-status', design);
+    setAttrIfChanged(alignWrap, 'data-xfs-pill-align', design);
     const innerRow = pill.parentElement;
     if (innerRow?.children) {
       for (const sibling of Array.from(innerRow.children)) {
         if (sibling !== pill && sibling.tagName?.toLowerCase?.() !== 'svg') {
-          if (sibling.getAttribute?.('data-xfs-pill-avatars') !== 'true') {
-            sibling.setAttribute?.('data-xfs-pill-avatars', 'true');
-          }
+          setAttrIfChanged(sibling, 'data-xfs-pill-avatars', 'true');
         }
       }
     }
-    if (pill.getAttribute?.('data-xfs-label') !== localized) {
-      pill.setAttribute?.('data-xfs-label', localized);
-    }
+    setAttrIfChanged(pill, 'data-xfs-label', localized);
   }
   return { active: true, design };
 }
 
+let homeTabHintEls = [];
+
 function syncHomeTabHints() {
   const onHome = showUiHints && /^\/home\/?$/.test(location.pathname);
-  for (const el of document.querySelectorAll?.('[data-xfs-home-idx]') || []) {
-    el.removeAttribute?.('data-xfs-home-idx');
+  if (!onHome) {
+    if (homeTabHintEls.length > 0) {
+      for (const el of homeTabHintEls) {
+        removeAttrIfPresent(el, 'data-xfs-home-idx');
+      }
+      homeTabHintEls = [];
+    }
+    return;
   }
-  if (!onHome) return;
   const tabs = document.querySelectorAll?.('[data-testid="primaryColumn"] [role="tablist"] [role="tab"]') || [];
+  const nextEls = [];
   for (let i = 0; i < Math.min(tabs.length, 9); i++) {
     const walker = document.createTreeWalker(tabs[i], NodeFilter.SHOW_TEXT, {
       acceptNode: (n) => (n.nodeValue || '').trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
     });
     const label = walker.nextNode()?.parentElement;
-    label?.setAttribute?.('data-xfs-home-idx', String(i + 1));
+    if (label) {
+      setAttrIfChanged(label, 'data-xfs-home-idx', String(i + 1));
+      nextEls.push(label);
+    }
   }
+  for (const prev of homeTabHintEls) {
+    if (!nextEls.includes(prev)) {
+      removeAttrIfPresent(prev, 'data-xfs-home-idx');
+    }
+  }
+  homeTabHintEls = nextEls;
 }
 
-function syncUiHints() {
+const docTargetBtnMap = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+const legacyCleanedDocs = typeof WeakSet !== 'undefined' ? new WeakSet() : null;
+let lastThemeSampleDoc = null;
+let lastThemeSampleAt = 0;
+let cachedNavColor = '';
+let cachedMutedColor = '';
+
+function syncUiHints(options = null) {
   if (typeof document === 'undefined' || !document.documentElement) return;
-  document.getElementById('xfs-hud')?.remove();
-  for (const badge of document.querySelectorAll?.('.xfs-key-badge') || []) {
-    badge.remove();
-  }
-  syncFollowingFilter(document);
-  syncCompactPill(document);
-  syncHomeTabHints();
-  if (!showUiHints) {
-    for (const prev of document.querySelectorAll?.('[data-xfs-target="true"]') || []) {
-      prev.removeAttribute?.('data-xfs-target');
-    }
-    document.getElementById('xfs-styles')?.remove();
-    return;
-  }
-  ensureStyles();
-  const keyText = formatShortcutLabel(shortcut).toLowerCase();
-  document.documentElement.style.setProperty('--xfs-follow-key', JSON.stringify(keyText));
+  const pathname = typeof location !== 'undefined' ? location.pathname : '';
+  syncPathnameState(pathname);
 
-  const activeFollowBtn =
-    typeof document.querySelector === 'function' ? findProfileFollowButton(document) : null;
-  for (const prev of document.querySelectorAll?.('[data-xfs-target="true"]') || []) {
-    if (prev !== activeFollowBtn) {
-      prev.removeAttribute?.('data-xfs-target');
+  // Phase 1: Read layout & computed styles BEFORE mutating any DOM attributes/styles
+  const primary =
+    typeof document.querySelector === 'function'
+      ? document.querySelector('[data-testid="primaryColumn"]')
+      : null;
+  const filterMode = getFollowFilterMode(pathname);
+  const filterActive = Boolean(filterMode && filterNonFollowers);
+  const normProfile =
+    filterMode === 'followers' ? resolveNormalizedProfileHref(document) : '';
+
+  if (filterActive && primary) {
+    if (lastFocusedCellLink) {
+      const focusedCell =
+        lastFocusedCellLink.closest?.('[data-testid="UserCell"]') ||
+        lastFocusedCellLink.closest?.('[data-testid="cellInnerDiv"]')?.querySelector?.('[data-testid="UserCell"]');
+      if (focusedCell && shouldFilterOutUserCell(focusedCell, filterMode, document, normProfile)) {
+        if (lastFocusedRowTop === null) {
+          const prevTop = getRowVisualTop(focusedCell);
+          if (prevTop !== null) lastFocusedRowTop = prevTop;
+        }
+        lastFocusedCellLink = null;
+      }
+    }
+    if (
+      lastFocusedFilteredCell &&
+      shouldFilterOutUserCell(lastFocusedFilteredCell, filterMode, document, normProfile)
+    ) {
+      if (lastFocusedRowTop === null) {
+        const prevTop = getRowVisualTop(lastFocusedFilteredCell);
+        if (prevTop !== null) lastFocusedRowTop = prevTop;
+      }
+      lastFocusedFilteredCell = null;
     }
   }
-  if (activeFollowBtn && activeFollowBtn.getAttribute?.('data-xfs-target') !== 'true') {
-    activeFollowBtn.setAttribute?.('data-xfs-target', 'true');
+
+  let precomputedActiveCell;
+  let activeFollowBtn = null;
+  if (isFollowListPage(pathname) && primary) {
+    precomputedActiveCell = findTargetUserCell(primary, document, pathname, normProfile);
+    if (showUiHints && typeof document.querySelector === 'function') {
+      activeFollowBtn = findProfileFollowButton(document, pathname, precomputedActiveCell);
+    }
+  } else if (showUiHints && typeof document.querySelector === 'function') {
+    activeFollowBtn = findProfileFollowButton(document, pathname);
   }
 
-  if (typeof getComputedStyle === 'function' && typeof document.querySelector === 'function') {
+  const now = Date.now();
+  if (
+    showUiHints &&
+    typeof getComputedStyle === 'function' &&
+    typeof document.querySelector === 'function' &&
+    (lastThemeSampleDoc !== document ||
+      !cachedNavColor ||
+      !cachedMutedColor ||
+      now - lastThemeSampleAt >= THEME_COLOR_CACHE_MS)
+  ) {
+    lastThemeSampleDoc = document;
+    lastThemeSampleAt = now;
     const navSample = document.querySelector('header nav a span, header nav a svg');
     if (navSample) {
       const navColor = getComputedStyle(navSample).color;
-      if (navColor) {
-        document.documentElement.style.setProperty('--xfs-nav-color', navColor);
-      }
+      if (navColor) cachedNavColor = navColor;
     }
     const mutedSample = document.querySelector(
       '[data-testid="SearchBox_Search_Input_label"] svg, article [role="group"] button svg'
     );
     if (mutedSample) {
       const mutedColor = getComputedStyle(mutedSample).color;
-      if (mutedColor) {
-        document.documentElement.style.setProperty('--xfs-muted-color', mutedColor);
+      if (mutedColor) cachedMutedColor = mutedColor;
+    }
+  }
+
+  // Phase 2: Write DOM attributes & CSS variables (guarded so steady-state performs 0 mutations)
+  isApplyingDomSync = true;
+  try {
+    if (!legacyCleanedDocs?.has(document)) {
+      legacyCleanedDocs?.add(document);
+      const hudEl = document.getElementById?.('xfs-hud');
+      if (hudEl && (!hudEl.id || hudEl.id === 'xfs-hud')) {
+        hudEl.remove?.();
+      }
+      for (const badge of document.querySelectorAll?.('.xfs-key-badge') || []) {
+        badge.remove?.();
       }
     }
+
+    const filterOpts = {
+      background: Boolean(options?.background),
+      normProfile
+    };
+    if (precomputedActiveCell !== undefined) {
+      filterOpts.activeCell = precomputedActiveCell;
+    }
+    syncFollowingFilter(document, pathname, filterOpts);
+    syncCompactPill(document, pathname);
+    syncHomeTabHints();
+
+    if (!showUiHints) {
+      if (docTargetBtnMap?.has(document)) {
+        const prevBtn = docTargetBtnMap.get(document);
+        if (prevBtn) removeAttrIfPresent(prevBtn, 'data-xfs-target');
+        docTargetBtnMap.set(document, null);
+      } else {
+        for (const prev of document.querySelectorAll?.('[data-xfs-target="true"]') || []) {
+          removeAttrIfPresent(prev, 'data-xfs-target');
+        }
+        docTargetBtnMap?.set(document, null);
+      }
+      const stylesEl = document.getElementById?.('xfs-styles');
+      if (!stylesEl?.id || stylesEl.id === 'xfs-styles') {
+        stylesEl?.remove?.();
+      }
+      return;
+    }
+
+    ensureStyles();
+    const keyText = formatShortcutLabel(shortcut).toLowerCase();
+    setRootCssVarIfChanged(document.documentElement, '--xfs-follow-key', JSON.stringify(keyText));
+
+    if (docTargetBtnMap?.has(document)) {
+      const prevBtn = docTargetBtnMap.get(document);
+      if (prevBtn && prevBtn !== activeFollowBtn) {
+        removeAttrIfPresent(prevBtn, 'data-xfs-target');
+      }
+    } else {
+      for (const prev of document.querySelectorAll?.('[data-xfs-target="true"]') || []) {
+        if (prev !== activeFollowBtn) {
+          removeAttrIfPresent(prev, 'data-xfs-target');
+        }
+      }
+    }
+    if (activeFollowBtn) {
+      setAttrIfChanged(activeFollowBtn, 'data-xfs-target', 'true');
+    }
+    docTargetBtnMap?.set(document, activeFollowBtn || null);
+
+    if (cachedNavColor) {
+      setRootCssVarIfChanged(document.documentElement, '--xfs-nav-color', cachedNavColor);
+    }
+    if (cachedMutedColor) {
+      setRootCssVarIfChanged(document.documentElement, '--xfs-muted-color', cachedMutedColor);
+    }
+  } finally {
+    isApplyingDomSync = false;
+    lastUiSyncFinishedAt = Date.now();
   }
 }
 
@@ -2323,6 +2898,7 @@ let uiSyncRafId = null;
 let uiSyncTimerId = null;
 function scheduleUiSync() {
   if (typeof requestAnimationFrame !== 'function' || uiSyncScheduled) return;
+  clearBgUiSyncTimer();
   uiSyncScheduled = true;
   const runSync = () => {
     if (!uiSyncScheduled) return;
@@ -2343,14 +2919,52 @@ function scheduleUiSync() {
   }
 }
 
+function scheduleBackgroundUiSync() {
+  if (uiSyncScheduled || bgUiSyncTimerId !== null) return;
+  if (typeof document !== 'undefined' && document.hidden) {
+    pendingSyncOnVisible = true;
+    return;
+  }
+  if (typeof setTimeout !== 'function') return;
+  const now = Date.now();
+  const minInterval = isFollowingFilterActive()
+    ? BG_UI_SYNC_FILTER_INTERVAL_MS
+    : BG_UI_SYNC_MIN_INTERVAL_MS;
+  const elapsed = now - lastUiSyncFinishedAt;
+  let delay = elapsed >= minInterval ? 24 : Math.max(24, minInterval - elapsed);
+  if (isUserActivelyInteracting()) {
+    delay = Math.max(delay, FILTER_INTERACTION_BACKOFF_MS);
+  }
+  bgUiSyncTimerId = setTimeout(() => {
+    bgUiSyncTimerId = null;
+    if (typeof document !== 'undefined' && document.hidden) {
+      pendingSyncOnVisible = true;
+      return;
+    }
+    if (uiSyncScheduled) return;
+    syncUiHints({ background: true });
+  }, delay);
+}
+
 function restoreCellFocusIfNeeded() {
+  clearRestoreFocusTimers();
   if (!lastFocusedCellLink || !isFollowListPage()) return;
+  if (typeof setTimeout !== 'function') return;
   for (const delay of [50, 150]) {
-    setTimeout(() => {
+    const timerId = setTimeout(() => {
+      restoreFocusTimerIds = restoreFocusTimerIds.filter((id) => id !== timerId);
+      if (Date.now() - lastUserPointerAt < 300) {
+        return;
+      }
       const active = document.activeElement;
       if (
         isEditable(active) ||
-        nodeTouchesTestIdsOrSelector(active, XCHAT_HOST_TESTIDS, XCHAT_HOST_SELECTOR)
+        nodeTouchesTestIdsOrSelector(active, XCHAT_HOST_TESTIDS, XCHAT_HOST_SELECTOR) ||
+        isInsideXChatContext(null, document) ||
+        isInsideModalDialog(null, document) ||
+        document.querySelector?.(
+          '[data-testid="Dropdown"], [data-testid="HoverCard"], [data-testid="confirmationSheetConfirm"], [data-testid="confirmationSheetCancel"]'
+        )
       ) {
         scheduleUiSync();
         return;
@@ -2371,6 +2985,7 @@ function restoreCellFocusIfNeeded() {
       }
       scheduleUiSync();
     }, delay);
+    restoreFocusTimerIds.push(timerId);
   }
 }
 
@@ -2780,7 +3395,9 @@ window.addEventListener(
     if (code && (e.ctrlKey || e.altKey || e.shiftKey || e.metaKey)) {
       ignoredModifierKeysDown.add(code);
     }
-    scheduleUiSync();
+    if (!editable) {
+      scheduleUiSync();
+    }
   },
   true
 );
@@ -2810,7 +3427,10 @@ window.addEventListener(
       return;
     }
 
-    scheduleUiSync();
+    const editable = isEditableEvent(e, document);
+    if (!editable) {
+      scheduleUiSync();
+    }
     const code = resolveKeyCode(e);
     if (!code || code === repeatingCode) {
       clearRepeatTimer();
@@ -2818,7 +3438,7 @@ window.addEventListener(
     const wasSeenOnKeydown = code ? seenKeysDown.has(code) : false;
     if (code) seenKeysDown.delete(code);
 
-    if (Date.now() - lastModalDismissAt < 600 && (code === 'KeyN' || code === 'KeyY') && !isEditableEvent(e, document)) {
+    if (Date.now() - lastModalDismissAt < 600 && (code === 'KeyN' || code === 'KeyY') && !editable) {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -2853,6 +3473,115 @@ window.addEventListener(
   true
 );
 
+function isIgnoredMutationTarget(node) {
+  if (!node) return true;
+  const el = node.nodeType === 1 ? node : node.parentElement;
+  if (!el) return true;
+  const tag = typeof el.tagName === 'string' ? el.tagName.toUpperCase() : '';
+  if (
+    tag === 'STYLE' ||
+    tag === 'SCRIPT' ||
+    tag === 'LINK' ||
+    tag === 'META' ||
+    tag === 'HEAD' ||
+    tag === 'TITLE'
+  ) {
+    return true;
+  }
+  const id = typeof el.id === 'string' ? el.id : '';
+  if (id && id.startsWith('xfs-')) {
+    return true;
+  }
+  if (typeof el.closest === 'function' && el.closest('#xfs-following-filter-bar, head')) {
+    return true;
+  }
+  return false;
+}
+
+function shouldScheduleSyncForMutations(records) {
+  if (isApplyingDomSync) return false;
+  if (!records || records.length === 0) return false;
+  for (let i = 0; i < records.length; i++) {
+    const rec = records[i];
+    if (!rec) continue;
+    if (rec.type === 'attributes') {
+      if (!isIgnoredMutationTarget(rec.target)) return true;
+      continue;
+    }
+    if (rec.type === 'childList') {
+      if (isIgnoredMutationTarget(rec.target)) continue;
+      const added = rec.addedNodes;
+      const removed = rec.removedNodes;
+      const addedLen = added ? added.length : 0;
+      const removedLen = removed ? removed.length : 0;
+      if (addedLen === 0 && removedLen === 0) continue;
+      for (let j = 0; j < addedLen; j++) {
+        const n = added[j];
+        if (n && n.nodeType === 1 && !isIgnoredMutationTarget(n)) {
+          return true;
+        }
+      }
+      for (let j = 0; j < removedLen; j++) {
+        const n = removed[j];
+        if (n && n.nodeType === 1 && !isIgnoredMutationTarget(n)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+function handleMutationRecords(records) {
+  if (typeof document !== 'undefined' && document.hidden) {
+    if (shouldScheduleSyncForMutations(records)) {
+      pendingSyncOnVisible = true;
+    }
+    return;
+  }
+  if (shouldScheduleSyncForMutations(records)) {
+    scheduleBackgroundUiSync();
+  }
+}
+
+function handleMouseOver(e) {
+  const t = e?.target;
+  if (
+    !t ||
+    (typeof window !== 'undefined' && t === window) ||
+    (typeof document !== 'undefined' &&
+      (t === document || t === document.body || t === document.documentElement))
+  ) {
+    lastHoveredContext = null;
+    scheduleUiSync();
+    return;
+  }
+  const el = t.nodeType === 1 ? t : t.parentElement;
+  const ctx =
+    typeof el?.closest === 'function'
+      ? el.closest('[data-testid="UserCell"], [data-testid="HoverCard"], [data-testid="Dropdown"]')
+      : null;
+  if (ctx === lastHoveredContext) return;
+  lastHoveredContext = ctx;
+  scheduleBackgroundUiSync();
+}
+
+if (typeof window !== 'undefined') {
+  const onManualScrollInput = () => {
+    lastUserScrollAt = Date.now();
+    clearAlignTimers();
+  };
+  const onUserPointerDown = () => {
+    lastUserPointerAt = Date.now();
+    clearAlignTimers();
+    clearRestoreFocusTimers();
+  };
+  window.addEventListener('wheel', onManualScrollInput, { capture: true, passive: true });
+  window.addEventListener('touchstart', onManualScrollInput, { capture: true, passive: true });
+  window.addEventListener('touchmove', onManualScrollInput, { capture: true, passive: true });
+  window.addEventListener('pointerdown', onUserPointerDown, { capture: true, passive: true });
+}
+
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   window.addEventListener('blur', () => {
     clearRepeatTimer();
@@ -2863,7 +3592,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     clearPendingPrefix();
   });
   window.addEventListener('focusin', scheduleUiSync, true);
-  window.addEventListener('mouseover', scheduleUiSync, true);
+  window.addEventListener('mouseover', handleMouseOver, true);
   window.addEventListener(
     'click',
     () => {
@@ -2875,10 +3604,16 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     true
   );
   window.addEventListener('popstate', scheduleUiSync);
+  document.addEventListener?.('visibilitychange', () => {
+    if (!document.hidden && pendingSyncOnVisible) {
+      pendingSyncOnVisible = false;
+      scheduleBackgroundUiSync();
+    }
+  });
 
   const attachObserver = () => {
     if (typeof MutationObserver !== 'undefined' && document.documentElement) {
-      const observer = new MutationObserver(scheduleUiSync);
+      const observer = new MutationObserver(handleMutationRecords);
       observer.observe?.(document.documentElement, {
         childList: true,
         subtree: true,
@@ -2938,6 +3673,8 @@ if (typeof module !== 'undefined') {
     syncCompactPill,
     syncFollowingFilter,
     scheduleUiSync,
+    scheduleBackgroundUiSync,
+    shouldScheduleSyncForMutations,
     syncUiHints
   };
 }
