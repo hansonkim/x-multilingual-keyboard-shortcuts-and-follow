@@ -535,13 +535,71 @@ if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
   registerUserscriptMenuCommands();
 }
 
-function isEditable(el) {
+function getDeepActiveElement(root = typeof document !== 'undefined' ? document : null) {
+  let active = root?.activeElement || null;
+  while (active?.shadowRoot?.activeElement && active.shadowRoot.activeElement !== active) {
+    active = active.shadowRoot.activeElement;
+  }
+  return active;
+}
+
+function isEditableNode(el) {
   if (!el || el.nodeType !== 1) return false;
   const tag = el.tagName;
   if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable) {
     return true;
   }
-  return Boolean(el.closest?.('[contenteditable="true"], [role="textbox"], input, textarea'));
+  const ce = el.getAttribute?.('contenteditable');
+  if (ce === '' || ce === 'true' || ce === 'plaintext-only') {
+    return true;
+  }
+  return Boolean(
+    el.closest?.(
+      '[contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"], [role="textbox"], [role="searchbox"], input, textarea, select'
+    )
+  );
+}
+
+function isEditable(el) {
+  let cur = el;
+  while (cur && cur.nodeType === 1) {
+    if (isEditableNode(cur)) return true;
+    const next = cur.shadowRoot?.activeElement;
+    if (!next || next === cur) break;
+    cur = next;
+  }
+  return false;
+}
+
+function getEventTarget(e, root = typeof document !== 'undefined' ? document : null) {
+  if (typeof e?.composedPath === 'function') {
+    const path = e.composedPath();
+    if (path && path.length > 0) {
+      const first = path[0];
+      if (first?.nodeType === 1) return first;
+      if (first?.parentElement?.nodeType === 1) return first.parentElement;
+    }
+  }
+  let target = e?.target || null;
+  while (target?.shadowRoot?.activeElement && target.shadowRoot.activeElement !== target) {
+    target = target.shadowRoot.activeElement;
+  }
+  return target || getDeepActiveElement(root);
+}
+
+function isEditableEvent(e, root = typeof document !== 'undefined' ? document : null) {
+  if (e) {
+    if (typeof e.composedPath === 'function') {
+      for (const node of e.composedPath()) {
+        if (node && node.nodeType === 1 && isEditableNode(node)) {
+          return true;
+        }
+      }
+    }
+    if (isEditable(e.target)) return true;
+  }
+  const deepActive = getDeepActiveElement(root);
+  return Boolean(deepActive && isEditableNode(deepActive));
 }
 
 function matchesShortcut(e, sc) {
@@ -1178,7 +1236,7 @@ function createSyntheticKeyboardEvent(type, spec, modifiers = {}) {
 }
 
 function getDispatchTarget(root = document) {
-  const active = root.activeElement;
+  const active = getDeepActiveElement(root);
   if (active && active !== root.documentElement) {
     return active;
   }
@@ -2118,7 +2176,7 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
   if (!code) return false;
 
   // 1. Inside editable fields: only support Cmd+Enter / Ctrl+Enter (Send post) when IME is composing
-  if (isEditable(e.target)) {
+  if (isEditableEvent(e, root)) {
     if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && code === 'Enter') {
       const spec = codeToNativeSpec('Enter', false);
       if (pendingComposingEnterSend) {
@@ -2135,7 +2193,7 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
       e.stopImmediatePropagation();
       const modifiers = { ctrlKey: e.ctrlKey, metaKey: e.metaKey };
       const composing = e.isComposing || e.key === 'Process' || e.keyCode === 229 || e.which === 229;
-      const target = e.target;
+      const target = getEventTarget(e, root);
       if (composing && typeof target?.addEventListener === 'function') {
         // Windows IMEs commit the last composed syllable only after this keydown (on compositionend),
         // and Chromium on Windows also fires a follow-up native keydown(Enter, keyCode: 13) right after
@@ -2326,7 +2384,7 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
 }
 
 function handleActionIfMatched(e, root = document, forceDispatch = false) {
-  if (!isEditable(e.target)) {
+  if (!isEditableEvent(e, root)) {
     // 1. If confirmation modal is open (unfollow / mute / block), allow Y / N in any language to confirm / cancel
     const modalBtn = findConfirmationDialogButton(e, root);
     if (modalBtn) {
@@ -2435,7 +2493,7 @@ window.addEventListener(
     if (code) seenKeysDown.add(code);
 
     // Swallow delayed synthetic Y/N dispatches from external Korean shortcut extensions right after modal close
-    if (Date.now() - lastModalDismissAt < 600 && (code === 'KeyN' || code === 'KeyY')) {
+    if (Date.now() - lastModalDismissAt < 600 && (code === 'KeyN' || code === 'KeyY') && !isEditableEvent(e, document)) {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -2491,7 +2549,7 @@ window.addEventListener(
     const wasSeenOnKeydown = code ? seenKeysDown.has(code) : false;
     if (code) seenKeysDown.delete(code);
 
-    if (Date.now() - lastModalDismissAt < 600 && (code === 'KeyN' || code === 'KeyY')) {
+    if (Date.now() - lastModalDismissAt < 600 && (code === 'KeyN' || code === 'KeyY') && !isEditableEvent(e, document)) {
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
@@ -2571,6 +2629,7 @@ if (typeof module !== 'undefined') {
     codeToNativeSpec,
     formatShortcutLabel,
     isEditable,
+    isEditableEvent,
     matchesShortcut,
     isFollowListPage,
     getFollowFilterMode,

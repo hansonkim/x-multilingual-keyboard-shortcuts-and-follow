@@ -8,6 +8,7 @@ globalThis.window = {
 const {
   DEFAULT_SHORTCUT,
   isEditable,
+  isEditableEvent,
   matchesShortcut,
   isFollowListPage,
   getFollowFilterMode,
@@ -1597,6 +1598,228 @@ assert.ok(
   } finally {
     delete globalThis.requestAnimationFrame;
     delete globalThis.cancelAnimationFrame;
+  }
+
+  // 17. XChat (/i/chat, xchatEmbedRoute, xchatEmbedDrawer) Shadow DOM editable detection & IME regression tests
+  {
+    const hostDispatched = [];
+    const textareaDispatched = [];
+    const listboxDispatched = [];
+    const chatCompListeners = {};
+
+    const dmComposerTextarea = {
+      nodeType: 1,
+      tagName: 'TEXTAREA',
+      isContentEditable: false,
+      getAttribute: (k) => (k === 'data-testid' ? 'dm-composer-textarea' : null),
+      closest: () => null,
+      addEventListener(type, fn) {
+        (chatCompListeners[type] ||= []).push(fn);
+      },
+      removeEventListener(type, fn) {
+        chatCompListeners[type] = (chatCompListeners[type] || []).filter((f) => f !== fn);
+      },
+      dispatchEvent(ev) {
+        textareaDispatched.push({ type: ev.type, key: ev.key, code: ev.code, ctrlKey: ev.ctrlKey, metaKey: ev.metaKey });
+        return true;
+      }
+    };
+
+    const dmSearchInput = {
+      nodeType: 1,
+      tagName: 'INPUT',
+      isContentEditable: false,
+      getAttribute: (k) => (k === 'data-testid' ? 'dm-search-input' : null),
+      closest: () => null,
+      dispatchEvent() {
+        return true;
+      }
+    };
+
+    const plaintextShadowEditor = {
+      nodeType: 1,
+      tagName: 'DIV',
+      isContentEditable: false,
+      getAttribute: (k) => (k === 'contenteditable' ? 'plaintext-only' : null),
+      closest: () => null
+    };
+
+    const chatListbox = {
+      nodeType: 1,
+      tagName: 'DIV',
+      isContentEditable: false,
+      getAttribute: (k) => (k === 'role' ? 'listbox' : null),
+      closest: () => null,
+      dispatchEvent(ev) {
+        listboxDispatched.push({ type: ev.type, key: ev.key, keyCode: ev.keyCode });
+        return true;
+      }
+    };
+
+    const chatFilterBtn = {
+      nodeType: 1,
+      tagName: 'BUTTON',
+      isContentEditable: false,
+      getAttribute: () => null,
+      closest: () => null,
+      dispatchEvent(ev) {
+        listboxDispatched.push({ type: ev.type, key: ev.key, keyCode: ev.keyCode });
+        return true;
+      }
+    };
+
+    const xchatShadowRoot = {
+      nodeType: 11,
+      activeElement: dmComposerTextarea
+    };
+
+    // Outer Shadow Host (<div data-testid="xchatEmbedRoute">): e.target at window capture phase is retargeted to this DIV
+    const xchatEmbedHost = {
+      nodeType: 1,
+      tagName: 'DIV',
+      isContentEditable: false,
+      shadowRoot: xchatShadowRoot,
+      getAttribute: (k) => (k === 'data-testid' ? 'xchatEmbedRoute' : null),
+      closest: () => null,
+      dispatchEvent(ev) {
+        hostDispatched.push({ type: ev.type, key: ev.key, keyCode: ev.keyCode });
+        return true;
+      }
+    };
+
+    const xchatDoc = {
+      body: mockBody,
+      documentElement: { nodeType: 1, tagName: 'HTML' },
+      activeElement: xchatEmbedHost,
+      querySelector: () => null,
+      querySelectorAll: () => []
+    };
+
+    assert.equal(isEditable(xchatEmbedHost), true, 'Shadow host whose shadowRoot.activeElement is TEXTAREA must be editable');
+    assert.equal(isEditable(plaintextShadowEditor), true, 'contenteditable="plaintext-only" must be editable');
+
+    // 17a. Typing Korean 'ㅜ' (KeyN) and all other IME keys in /i/chat composer or search input NEVER triggers shortcuts
+    const chatImeKeys = [
+      { key: 'ㅜ', code: 'KeyN', keyCode: 229, isComposing: true },
+      { key: 'Process', code: 'KeyN', keyCode: 229, isComposing: true },
+      { key: 'ㅜ', code: '' },
+      { key: 'み', code: 'KeyN' },
+      { key: 'ㄙ', code: 'KeyN' },
+      { key: 'ㅓ', code: 'KeyJ', keyCode: 229, isComposing: true },
+      { key: 'ㅏ', code: 'KeyK', keyCode: 229, isComposing: true },
+      { key: 'ㄹ', code: 'KeyF', keyCode: 229, isComposing: true },
+      { key: 'ㄹ', code: 'KeyF', shiftKey: true },
+      { key: 'ㅎ', code: 'KeyG', keyCode: 229, isComposing: true },
+      { key: 'ㄷ', code: 'KeyE', keyCode: 229, isComposing: true },
+      { key: '？', code: 'Slash', shiftKey: true },
+      { key: '1', code: 'Digit1' }
+    ];
+
+    for (const activeInner of [dmComposerTextarea, dmSearchInput]) {
+      xchatShadowRoot.activeElement = activeInner;
+      for (const k of chatImeKeys) {
+        clearPendingPrefix();
+        let prevented = false;
+        const ev = makeEv({
+          ...k,
+          target: xchatEmbedHost,
+          composedPath: () => [activeInner, { nodeType: 1, tagName: 'DIV', getAttribute: () => null, closest: () => null }, xchatShadowRoot, xchatEmbedHost, mockBody, xchatDoc],
+          preventDefault() {
+            prevented = true;
+          }
+        });
+        assert.equal(isEditableEvent(ev, xchatDoc), true);
+        assert.equal(
+          handleActionIfMatched(ev, xchatDoc, false),
+          false,
+          `Typing ${JSON.stringify(k)} inside Shadow DOM ${activeInner.tagName} must never trigger global shortcut`
+        );
+        assert.equal(prevented, false, 'Must not preventDefault on chat text input');
+      }
+    }
+    assert.equal(hostDispatched.length, 0);
+    assert.equal(textareaDispatched.length, 0);
+
+    // 17b. Also test real window keydown + keyup listeners (including keyCode 229 keydown -> Korean keyup fallback)
+    globalThis.document = xchatDoc;
+    globalThis.location = { pathname: '/i/chat/bots/936b9958-8d19-4b8c-9013-f652a2ccc727' };
+    xchatShadowRoot.activeElement = dmComposerTextarea;
+    dispatchedEvents.length = 0;
+    let windowKdPrevented = false;
+    const realCaptureKd = makeEv({
+      key: 'Process',
+      code: '',
+      keyCode: 229,
+      which: 229,
+      isComposing: true,
+      target: xchatEmbedHost,
+      composedPath: () => [dmComposerTextarea, xchatShadowRoot, xchatEmbedHost, mockBody, xchatDoc],
+      preventDefault() {
+        windowKdPrevented = true;
+      }
+    });
+    const realCaptureKu = makeEv({
+      key: 'ㅜ',
+      code: 'KeyN',
+      keyCode: 78,
+      which: 78,
+      isComposing: false,
+      target: xchatEmbedHost,
+      composedPath: () => [dmComposerTextarea, xchatShadowRoot, xchatEmbedHost, mockBody, xchatDoc]
+    });
+    for (const fn of listeners.keydown) fn(realCaptureKd);
+    for (const fn of listeners.keyup) fn(realCaptureKu);
+    assert.equal(windowKdPrevented, false);
+    assert.equal(hostDispatched.length, 0);
+    assert.equal(textareaDispatched.length, 0);
+    assert.equal(dispatchedEvents.length, 0);
+
+    // 17c. When NO input is focused on /i/chat (e.g. conversation listbox or filter button inside shadowRoot, or document.body),
+    // pressing Korean 'ㅜ' behaves identically to English 'n' and dispatches synthetic 'n'
+    for (const nonEditableInner of [chatListbox, chatFilterBtn]) {
+      xchatShadowRoot.activeElement = nonEditableInner;
+      listboxDispatched.length = 0;
+      clearPendingPrefix();
+      const nonEditEv = makeEv({
+        key: 'ㅜ',
+        code: 'KeyN',
+        target: xchatEmbedHost,
+        composedPath: () => [nonEditableInner, xchatShadowRoot, xchatEmbedHost, mockBody, xchatDoc]
+      });
+      assert.equal(isEditable(xchatEmbedHost), false);
+      assert.equal(isEditableEvent(nonEditEv, xchatDoc), false);
+      assert.equal(handleActionIfMatched(nonEditEv, xchatDoc, false), true);
+      assert.deepEqual(
+        listboxDispatched.map((d) => `${d.type}:${d.key}`),
+        ['keydown:n', 'keypress:n']
+      );
+    }
+
+    // 17d. Cmd+Enter / Ctrl+Enter during Korean IME composition inside Shadow DOM dm-composer-textarea
+    // binds compositionend to the inner TEXTAREA and dispatches Enter onto the inner TEXTAREA (not outer shadow host)
+    xchatShadowRoot.activeElement = dmComposerTextarea;
+    textareaDispatched.length = 0;
+    hostDispatched.length = 0;
+    chatCompListeners.compositionend = [];
+    const shadowCtrlEnter = makeEv({
+      key: 'Process',
+      code: 'Enter',
+      keyCode: 229,
+      isComposing: true,
+      metaKey: true,
+      target: xchatEmbedHost,
+      composedPath: () => [dmComposerTextarea, xchatShadowRoot, xchatEmbedHost, mockBody, xchatDoc]
+    });
+    assert.equal(handleActionIfMatched(shadowCtrlEnter, xchatDoc, false), true);
+    assert.equal(textareaDispatched.length, 0);
+    for (const fn of chatCompListeners.compositionend || []) fn({ type: 'compositionend' });
+    await new Promise((r) => setTimeout(r, 65));
+    assert.equal(hostDispatched.length, 0, 'Must dispatch inside shadowRoot on TEXTAREA, not outer host DIV');
+    assert.equal(
+      textareaDispatched.filter((d) => d.type === 'keydown' && d.key === 'Enter' && d.metaKey).length,
+      1,
+      'Cmd+Enter after compositionend must dispatch directly on Shadow DOM TEXTAREA'
+    );
   }
 
   console.log('All assertions passed.');
