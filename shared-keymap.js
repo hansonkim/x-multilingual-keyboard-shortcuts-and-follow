@@ -117,8 +117,9 @@
     return ch;
   }
 
-  function isApplePlatform(nav = typeof navigator !== 'undefined' ? navigator : null) {
-    const p = String(nav?.userAgentData?.platform || nav?.platform || nav?.userAgent || '');
+  function isApplePlatform(nav) {
+    const targetNav = arguments.length > 0 ? nav : (typeof navigator !== 'undefined' ? navigator : null);
+    const p = String(targetNav?.userAgentData?.platform || targetNav?.platform || targetNav?.userAgent || '');
     return !p || /mac|iphone|ipad|ipod/i.test(p);
   }
 
