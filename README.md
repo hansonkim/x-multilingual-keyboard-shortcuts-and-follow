@@ -2,7 +2,7 @@
 
 **Languages**: [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.16-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.17-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
 
 Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**, **Non-Follower Filter (`Shift + F`)**, **Confirmation Dialog (`Y` / `N`)**, and **Follower / Following Tab Navigation (`G` `V` / `G` `W` / `G` `O`)** seamlessly in **any input language (IME)** — including Korean, Japanese, Chinese, Russian, Arabic, and full-width layouts — without switching your keyboard back to English.
 
@@ -10,7 +10,7 @@ Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**,
 
 ## Demo Video
 
-[![Watch Demo Video (MP4)](store-assets/demo-video.gif)](store-assets/demo-video.mp4)
+[![Watch Demo Video (MP4)](store-assets/screenshot-0-home-shortcuts.png)](store-assets/demo-video.mp4)
 
 > **[Download / Watch Full Resolution MP4 (`store-assets/demo-video.mp4`)](store-assets/demo-video.mp4)** — Includes real-time on-screen key event HUD (`G + V`, `J / K`, `F`, `Y / N`, `G + W`, `G + O`).
 
@@ -36,7 +36,7 @@ Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**,
 7. **Compact Floating "Posted" Pill (Default: On)**
    - Minimizes the large blue floating "Posted / Show new posts" banner on `/home` and `/notifications*` into a tiny translucent top-right micro icon (`↑ .`, expanding on hover) so it never blocks tweet content. Toggleable On/Off from the extension popup.
 8. **Home Tab Switching (`1`–`9`)**
-   - On `/home`, press `1`–`9` (or `G` then `1`–`9` / `0`) to jump to the corresponding top tab (For you, Following, custom lists…). The number hint is shown next to each tab label.
+   - On `/home`, press `1`–`9` to jump to the corresponding top tab (For you, Following, custom lists…). The number hint is shown next to each tab label.
 
 ---
 
@@ -46,9 +46,9 @@ Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**,
 | --- | --- |
 | ![Home Shortcuts](store-assets/screenshot-0-home-shortcuts.png) | ![Verified Followers](store-assets/screenshot-1-verified-followers-jk.png) |
 
-| Unfollow Confirmation Modal (`Y / N`) | Followers (`G + W`) & Following (`G + O`) |
-| --- | --- |
-| ![Unfollow Confirm](store-assets/screenshot-2-unfollow-confirm-yn.png) | ![Followers Tab](store-assets/screenshot-3-followers-tab-gw.png) |
+| Unfollow Confirmation Modal (`Y / N`) | Followers Tab (`G + W`) | Following Tab (`G + O`) |
+| --- | --- | --- |
+| ![Unfollow Confirm](store-assets/screenshot-2-unfollow-confirm-yn.png) | ![Followers Tab](store-assets/screenshot-3-followers-tab-gw.png) | ![Following Tab](store-assets/screenshot-4-following-tab-go.png) |
 
 ---
 
@@ -64,7 +64,8 @@ Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**,
 | `G` then `V` | Open **Verified Followers** (`/verified_followers`) |
 | `G` then `W` | Open **Followers** (`/followers`) |
 | `G` then `O` | Open **Following** (`/following`) |
-| `E` | Open Repost menu and immediately select **Quote** |
+| `1`–`9` | Switch top tabs on `/home` (For you, Following, custom lists…) |
+| `E` | Open Repost menu / Select **Quote** when open |
 
 ### Built-in X.com Shortcuts (Multilingual IME Auto-Converted)
 
@@ -73,13 +74,14 @@ Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**,
 | `?` / `.` | Open shortcut help (`?`) / Load new posts (`.`) |
 | `J` / `K` *(hold supported)* | Next / Previous post or user item |
 | `Space` / `Enter` | Page down (`Space`) / Open selected post (`Enter`) |
-| `N` / `⌘+Enter` | New post (`N`) / Send post (`⌘+Enter`) |
+| `N` / `⌘+Enter` (`⌘↵`) / `Ctrl+Enter` (`Ctrl↵`) | New post (`N`) / Send post, reply, or DM (`⌘+Enter` / `⌘↵` on macOS, `Ctrl+Enter` / `Ctrl↵` on Windows/Linux) |
 | `/` | Focus search bar |
 | `L` / `R` / `T` | Like (`L`) / Reply (`R`) / Repost (`T`) |
 | `S` / `B` | Share (`S`) / Bookmark (`B`) |
 | `U` / `X` | Mute account (`U`) / Block account (`X`) |
 | `O` / `I` / `M` | Expand photo (`O`) / Messages dock (`I`) / Mute video (`M`) |
 | `G` + `H/E/N/R/P/F/T/L/I/M/G/C/S/B/U/D` | Navigate to Home, Explore, Notifications, Mentions, Profile, Drafts, Scheduled, Likes, Lists, Messages, Grok, Creator Studio, Settings, Bookmarks, Profile prompt, Display |
+| `A` + `D/Space/M` | Go to Audio dock (`D`) / Play·Pause (`Space`) / Mute·Unmute (`M`) |
 
 ---
 
@@ -94,8 +96,15 @@ Use all **X.com (Twitter)** keyboard shortcuts plus **Follow / Unfollow (`F`)**,
 
 ### Safari (macOS / iOS) — Userscript
 1. Install a Userscript manager for Safari such as [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) (free, open-source) or [Stay](https://apps.apple.com/app/stay-for-safari/id1591620171) / Tampermonkey.
-2. Download **[`x-multilingual-keyboard-shortcuts-and-follow.user.js`](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest/download/x-multilingual-keyboard-shortcuts-and-follow.user.js)** (or `x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip`) from [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest) and add it to your Userscripts directory.
-3. Open `https://x.com` in Safari — all multilingual shortcuts (`?`), `F` Follow/Unfollow, `Y`/`N` confirmation modals, and `G V/W/O` tab navigation work immediately. You can also toggle UI hints or customize the Follow key from the Userscript manager menu (`GM_registerMenuCommand`).
+2. Download **[`x-multilingual-keyboard-shortcuts-and-follow.user.js`](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest/download/x-multilingual-keyboard-shortcuts-and-follow.user.js)** from [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest) and add it to your Userscripts directory.
+3. Open `https://x.com` in Safari — all multilingual shortcuts (`?`), `F` Follow/Unfollow, `Y`/`N` confirmation modals, `Shift + F` non-follower filter, and `G V/W/O` tab navigation work immediately.
+   - **Userscript Menu Options (`GM_registerMenuCommand`)**: Access settings directly from the userscript manager menu (saved to `localStorage`):
+     - Toggle on-screen shortcut hints
+     - Toggle unreciprocated follower/following filter (`Shift + F`)
+     - Toggle compact floating "Posted" pill
+     - Customize Follow shortcut key
+     - Select compact floating button design (**1**: Standard / glass capsule, **2**: Compact / slim bar below tabs, **3**: Minimal / tiny icon `↑ .`)
+     - Set UI language (`ko`, `en`, `zh`, `ja`, `auto`)
 
 ---
 

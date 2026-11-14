@@ -2,7 +2,7 @@
 
 **语言 (Languages)**: [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.16-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.17-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
 
 无需切换到英文输入法，即可在**中文、韩语、日语、俄语、阿拉伯语及全角输入法（IME）**下直接使用 **X.com (Twitter) 的所有原生快捷键（`?`）**，并新增**关注/取消关注（`F`）**、**未回关用户筛选（`Shift+F`）**、**确认弹窗（`Y`/`N`）**以及**关注者/正在关注标签页跳转（`G` `V` / `G` `W` / `G` `O`）**快捷键。
 
@@ -10,7 +10,7 @@
 
 ## 演示视频 (Demo Video)
 
-[![观看演示视频 (MP4)](store-assets/demo-video.gif)](store-assets/demo-video.mp4)
+[![观看演示视频 (MP4)](store-assets/screenshot-0-home-shortcuts.png)](store-assets/demo-video.mp4)
 
 > **[查看 / 下载高清 MP4 视频 (`store-assets/demo-video.mp4`)](store-assets/demo-video.mp4)** — 视频右下角带有实时按键事件 HUD 显示（`G + V`、`J / K`、`F`、`Y / N`、`G + W`、`G + O`）。
 
@@ -36,7 +36,7 @@
 7. **浮动“已发帖”按钮精简（默认：开启）**
    - 将 `/home` 和 `/notifications*` 页面中遮挡正文的蓝色浮动新帖按钮缩小为右上角半透明迷你图标（`↑ .`，鼠标悬停时展开文字），可在扩展弹窗中随时开启或关闭。
 8. **主页标签数字快捷键（`1`–`9`）**
-   - 在 `/home` 按 `1`–`9`（或先按 `G` 再按 `1`–`9` / `0`）即可跳转到对应的顶部标签（为你推荐、正在关注、列表等）。每个标签名称旁会显示数字提示。
+   - 在 `/home` 按 `1`–`9` 即可跳转到对应的顶部标签（为你推荐、正在关注、列表等）。每个标签名称旁会显示数字提示。
 
 ---
 
@@ -46,9 +46,9 @@
 | --- | --- |
 | ![首页快捷键提示](store-assets/screenshot-0-home-shortcuts.png) | ![认证关注者列表](store-assets/screenshot-1-verified-followers-jk.png) |
 
-| 取消关注确认弹窗 (`Y / N`) | 关注者 (`G + W`) 与正在关注 (`G + O`) 导航 |
-| --- | --- |
-| ![取消关注确认弹窗](store-assets/screenshot-2-unfollow-confirm-yn.png) | ![关注者标签页](store-assets/screenshot-3-followers-tab-gw.png) |
+| 取消关注确认弹窗 (`Y / N`) | 关注者标签页 (`G + W`) | 正在关注标签页 (`G + O`) |
+| --- | --- | --- |
+| ![取消关注确认弹窗](store-assets/screenshot-2-unfollow-confirm-yn.png) | ![关注者标签页](store-assets/screenshot-3-followers-tab-gw.png) | ![正在关注标签页](store-assets/screenshot-4-following-tab-go.png) |
 
 ---
 
@@ -64,7 +64,8 @@
 | `G` 然后 `V` | 跳转到**认证关注者**（`/verified_followers`） |
 | `G` 然后 `W` | 跳转到**关注者**（`/followers`） |
 | `G` 然后 `O` | 跳转到**正在关注**（`/following`） |
-| `E` | 打开转发菜单并直接选择**引用（Quote）** |
+| `1`–`9` | 在 `/home` 直接切换顶部标签（为你推荐、正在关注、列表等） |
+| `E` | 打开转发菜单 / 菜单打开时选择**引用（Quote）** |
 
 ### X.com 原生快捷键（支持中·韩·日多语言输入法自动转换）
 
@@ -73,13 +74,14 @@
 | `?` / `.` | 快捷键帮助（`?`） / 加载新帖子（`.`） |
 | `J` / `K` *(支持长按)* | 下一条 / 上一条帖子或用户 |
 | `Space` / `Enter` | 向下翻页（`Space`） / 打开选中帖子详情（`Enter`） |
-| `N` / `⌘+Enter` | 发布新帖子（`N`） / 发送帖子（`⌘+Enter`） |
+| `N` / `⌘+Enter` (`⌘↵`) / `Ctrl+Enter` (`Ctrl↵`) | 发布新帖子（`N`） / 发送帖子、回复或私信（DM）（macOS: `⌘+Enter` / `⌘↵`，Windows/Linux: `Ctrl+Enter` / `Ctrl↵`） |
 | `/` | 聚焦搜索框 |
 | `L` / `R` / `T` | 喜欢（`L`） / 回复（`R`） / 转发（`T`） |
 | `S` / `B` | 分享（`S`） / 书签（`B`） |
 | `U` / `X` | 静音账号（`U`） / 屏蔽账号（`X`） |
 | `O` / `I` / `M` | 展开图片（`O`） / 私信栏（`I`） / 视频静音（`M`） |
 | `G` + `H/E/N/R/P/F/T/L/I/M/G/C/S/B/U/D` | 跳转到主页、探索、通知、提及、个人资料、草稿、定时、喜欢、列表、私信、Grok、创作者工作室、设置、书签、切换账号、显示设置 |
+| `A` + `D/Space/M` | 跳转到音频栏（`D`） / 播放·暂停（`Space`） / 静音切换（`M`） |
 
 ---
 
@@ -94,8 +96,15 @@
 
 ### Safari (macOS / iOS) — Userscript 脚本方式
 1. 在 Safari 中安装免费开源的脚本管理器扩展，例如 [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) 或 [Stay](https://apps.apple.com/app/stay-for-safari/id1591620171) / Tampermonkey。
-2. 从 [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest) 下载 **[`x-multilingual-keyboard-shortcuts-and-follow.user.js`](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest/download/x-multilingual-keyboard-shortcuts-and-follow.user.js)**（或 `x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip`）并添加到 Userscripts 脚本目录。
-3. 在 Safari 打开 `https://x.com` 即可直接使用所有多语言快捷键（`?`）、`F` 关注/取消关注、`Y`/`N` 确认弹窗以及 `G V/W/O` 标签页跳转，并可通过脚本菜单切换提示标签或修改关注键。
+2. 从 [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest) 下载 **[`x-multilingual-keyboard-shortcuts-and-follow.user.js`](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest/download/x-multilingual-keyboard-shortcuts-and-follow.user.js)** 并添加到 Userscripts 脚本目录。
+3. 在 Safari 打开 `https://x.com` 即可直接使用所有多语言快捷键（`?`）、`F` 关注/取消关注、`Y`/`N` 确认弹窗、`Shift + F` 未回关筛选以及 `G V/W/O` 标签页跳转。
+   - **Userscript 脚本菜单设置（`GM_registerMenuCommand`）**：可直接在脚本管理器菜单中配置各项功能（自动保存至 `localStorage`）：
+     - 显示 / 隐藏界面快捷键提示标签
+     - 切换关注者/正在关注未互关筛选（`Shift + F`）
+     - 切换精简浮动“已发帖”按钮
+     - 自定义关注快捷键
+     - 选择浮动按钮样式（**1**: 标准 右上角毛玻璃药丸、**2**: 紧凑 紧贴标签栏细长条、**3**: 极简 右上角极小图标 `↑ .`）
+     - 设置界面语言（`ko`、`en`、`zh`、`ja`、`auto`）
 
 ---
 

@@ -2,7 +2,7 @@
 
 **언어 (Languages)**: [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.16-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.17-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
 
 한/영 키를 전환하지 않고 **한국어(한글), 일본어, 중국어 등 모든 다국어 입력 상태(IME)**에서 **X.com(트위터)의 전체 기본 단축키(`?`)**와 **팔로우/언팔로우(`F`)**, **맞팔 안 한 계정 필터(`Shift+F`)**, **확인 모달(`Y`/`N`)**, **팔로워/팔로잉 탭 이동(`G` `V` / `G` `W` / `G` `O`)** 단축키를 바로 사용할 수 있는 Chrome 확장 프로그램입니다.
 
@@ -10,7 +10,7 @@
 
 ## 시연 영상 (Demo Video)
 
-[![시연 영상 보기 (MP4)](store-assets/demo-video.gif)](store-assets/demo-video.mp4)
+[![시연 영상 보기 (MP4)](store-assets/screenshot-0-home-shortcuts.png)](store-assets/demo-video.mp4)
 
 > **[고화질 원본 MP4 영상 보기 / 다운로드 (`store-assets/demo-video.mp4`)](store-assets/demo-video.mp4)** — 화면 우측 하단에 실시간 입력 키 이벤트 HUD(`G + V`, `J / K`, `F`, `Y / N`, `G + W`, `G + O`)가 표시됩니다.
 
@@ -36,7 +36,7 @@
 7. **플로팅 "게시됨" 버튼 최소화 (컨텐츠 가림 방지, 기본값: On)**
    - `/home` 및 `/notifications*` 화면에서 본문을 가리는 파란색 플로팅 "게시됨" 버튼을 우측 상단 초소형 반투명 아이콘(`↑ .`, 마우스 호버 시 텍스트 펼침)으로 축소하여 게시물 가림을 방지합니다. 확장 프로그램 팝업에서 On/Off 할 수 있습니다.
 8. **홈 탭 숫자 이동 (`1`–`9`)**
-   - `/home`에서 `1`–`9`(또는 `G` 다음 `1`–`9` / `0`)를 눌러 상단 탭(추천, 팔로잉, 사용자 리스트 등)으로 바로 이동합니다. 각 탭 이름 옆에 숫자 힌트가 표시됩니다.
+   - `/home`에서 `1`–`9`를 눌러 상단 탭(추천, 팔로잉, 사용자 리스트 등)으로 바로 이동합니다. 각 탭 이름 옆에 숫자 힌트가 표시됩니다.
 
 ---
 
@@ -46,9 +46,9 @@
 | --- | --- |
 | ![홈 단축키 힌트](store-assets/screenshot-0-home-shortcuts.png) | ![인증된 팔로워 목록](store-assets/screenshot-1-verified-followers-jk.png) |
 
-| 언팔로우 확인 모달 (`Y / N`) | 팔로워 (`G + W`) 및 팔로잉 (`G + O`) 탭 이동 |
-| --- | --- |
-| ![언팔로우 확인 모달](store-assets/screenshot-2-unfollow-confirm-yn.png) | ![팔로워 탭 이동](store-assets/screenshot-3-followers-tab-gw.png) |
+| 언팔로우 확인 모달 (`Y / N`) | 팔로워 탭 (`G + W`) | 팔로잉 탭 (`G + O`) |
+| --- | --- | --- |
+| ![언팔로우 확인 모달](store-assets/screenshot-2-unfollow-confirm-yn.png) | ![팔로워 탭](store-assets/screenshot-3-followers-tab-gw.png) | ![팔로잉 탭](store-assets/screenshot-4-following-tab-go.png) |
 
 ---
 
@@ -64,7 +64,8 @@
 | `G` → `V` (`ㅎ` → `ㅍ`) | **인증된 팔로워** (`/verified_followers`) 탭으로 이동 |
 | `G` → `W` (`ㅎ` → `ㅈ`) | **팔로워** (`/followers`) 탭으로 이동 |
 | `G` → `O` (`ㅎ` → `ㅐ`) | **팔로잉** (`/following`) 탭으로 이동 |
-| `E` (`ㄷ`) | 재게시 메뉴를 열고 **인용(Quote)** 바로 선택 |
+| `1`–`9` | `/home` 상단 탭(추천, 팔로잉, 리스트 등) 바로 전환 |
+| `E` (`ㄷ`) | 재게시 메뉴 열기 / 메뉴가 열려 있을 때 **인용(Quote)** 선택 |
 
 ### X.com 기본 단축키 (한·일·중 다국어 자동 변환 지원)
 
@@ -73,13 +74,14 @@
 | `?` / `.` | 단축키 도움말(`?`) / 새 게시물 불러오기(`.`) |
 | `J` / `K` *(길게 누르기 지원)* | 다음 / 이전 게시물·계정 이동 |
 | `Space` / `Enter` | 페이지 내리기(`Space`) / 선택한 게시물 상세 열기(`Enter`) |
-| `N` / `⌘+Enter` | 새 게시물 작성(`N`) / 게시물 전송(`⌘+Enter`) |
+| `N` / `⌘+Enter` (`⌘↵`) / `Ctrl+Enter` (`Ctrl↵`) | 새 게시물 작성(`N`) / 게시물·답글·쪽지(DM) 전송(macOS: `⌘+Enter` / `⌘↵`, Windows·Linux: `Ctrl+Enter` / `Ctrl↵`) |
 | `/` | 검색창 포커스 |
 | `L` / `R` / `T` | 마음에 들어요(`L`) / 답글(`R`) / 재게시(`T`) |
 | `S` / `B` | 공유하기(`S`) / 북마크(`B`) |
 | `U` / `X` | 계정 뮤트(`U`) / 계정 차단(`X`) |
 | `O` / `I` / `M` | 사진 펼치기(`O`) / 쪽지함(`I`) / 동영상 음소거(`M`) |
 | `G` + `H/E/N/R/P/F/T/L/I/M/G/C/S/B/U/D` | 홈, 탐색, 알림, 멘션, 프로필, 초안, 예약, 좋아요, 리스트, 채팅, Grok, 스튜디오, 설정, 북마크, 사용자, 표시 화면 이동 |
+| `A` + `D/Space/M` | 오디오독 이동(`D`) / 재생·일시중지(`Space`) / 음소거(`M`) |
 
 ---
 
@@ -94,8 +96,15 @@
 
 ### Safari (macOS / iOS) — Userscript 방식
 1. App Store에서 무료 오픈소스 Safari 확장 프로그램인 [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) 또는 [Stay](https://apps.apple.com/app/stay-for-safari/id1591620171) / Tampermonkey를 설치합니다.
-2. [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest)에서 **[`x-multilingual-keyboard-shortcuts-and-follow.user.js`](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest/download/x-multilingual-keyboard-shortcuts-and-follow.user.js)** (또는 `x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip`) 파일을 받아 Userscripts 폴더에 등록합니다.
-3. Safari에서 `https://x.com`에 접속하면 모든 다국어 단축키(`?`), `F` 팔로우/언팔로우, `Y`/`N` 확인 모달, `G V/W/O` 탭 이동이 즉시 작동하며, Userscript 메뉴(`GM_registerMenuCommand`)에서 단축키 힌트 표시/숨기기와 팔로우 키 변경도 가능합니다.
+2. [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest)에서 **[`x-multilingual-keyboard-shortcuts-and-follow.user.js`](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest/download/x-multilingual-keyboard-shortcuts-and-follow.user.js)** 파일을 받아 Userscripts 폴더에 등록합니다.
+3. Safari에서 `https://x.com`에 접속하면 모든 다국어 단축키(`?`), `F` 팔로우/언팔로우, `Y`/`N` 확인 모달, `Shift + F` 미맞팔 필터, `G V/W/O` 탭 이동이 즉시 작동합니다.
+   - **Userscript 메뉴 설정 (`GM_registerMenuCommand`)**: 확장 프로그램 팝업 없이도 스크립트 관리자 메뉴에서 다양한 설정을 직접 변경할 수 있습니다 (`localStorage`에 영구 보관):
+     - 단축키 힌트 표시/숨기기 토글
+     - 팔로잉·팔로워 미맞팔 계정만 보기 토글 (`Shift + F`)
+     - "게시됨" 플로팅 버튼 최소화 토글
+     - 팔로우 단축키 변경
+     - 플로팅 버튼 디자인 선택 (**1**: 표준 우측 상단 글래스 캡슐, **2**: 컴팩트 상단 탭바 밀착 슬림 바, **3**: 미니멀 초소형 아이콘 `↑ .`)
+     - UI 언어 설정 (`ko`, `en`, `zh`, `ja`, `auto`)
 
 ---
 

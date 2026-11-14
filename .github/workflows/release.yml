@@ -24,11 +24,45 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Run unit tests
-        run: node test.cjs
-
-      - name: Build Safari Userscript & Chrome Extension packages
+      - name: Run unit tests & build release packages
         run: node scripts/build-release.cjs
+
+      - name: Check for extension code changes
+        id: diff_check
+        run: |
+          BEFORE="${{ github.event.before }}"
+          BASE=""
+
+          if [ -n "$BEFORE" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] && git rev-parse --verify "$BEFORE" >/dev/null 2>&1; then
+            BASE="$BEFORE"
+          elif git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+            BASE="HEAD~1"
+          fi
+
+          if [ -z "$BASE" ]; then
+            echo "No base commit found (initial commit or shallow history); assuming code changes exist."
+            echo "has_code_changes=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Comparing changes between $BASE and HEAD..."
+          CHANGED_FILES=$(git diff --name-only "$BASE" HEAD -- \
+            manifest.json \
+            content.js \
+            shared-keymap.js \
+            popup.html \
+            popup.js \
+            'icons/**' \
+            scripts/build-release.cjs)
+
+          if [ -n "$CHANGED_FILES" ]; then
+            echo "Extension code changes detected:"
+            echo "$CHANGED_FILES"
+            echo "has_code_changes=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No extension code files changed (docs/tests/assets only)."
+            echo "has_code_changes=false" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Read version from manifest.json
         id: meta
@@ -38,6 +72,7 @@ jobs:
           echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Create or Update GitHub Release
+        if: github.event_name == 'workflow_dispatch' || steps.diff_check.outputs.has_code_changes == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -67,7 +102,7 @@ jobs:
                 whatsChanged,
                 "### Safari (macOS / iOS) — Userscript",
                 "1. Install a Userscript extension for Safari such as [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) (free, open-source) or [Stay](https://apps.apple.com/app/stay-for-safari/id1591620171) / Tampermonkey.",
-                "2. Download **`x-multilingual-keyboard-shortcuts-and-follow.user.js`** (or `x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip`) from the Assets below and add it to your Userscripts directory.",
+                "2. Download **`x-multilingual-keyboard-shortcuts-and-follow.user.js`** from the Assets below and add it to your Userscripts directory.",
                 "3. Open `https://x.com` in Safari — all multilingual shortcuts (`?`), `F` Follow/Unfollow, `Shift+F` Follow Filter on `/following`, `/followers`, and `/verified_followers`, `Y/N` confirmation modals, `1`–`9` home tab switching, and `G V/W/O` tab navigation work immediately.",
                 "\n### Chrome / Edge / Brave / Arc",
                 "- [Install from Chrome Web Store](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)",
@@ -83,34 +118,22 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" \
               dist/x-multilingual-keyboard-shortcuts-and-follow.user.js \
-              dist/x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip \
               dist/x-multilingual-keyboard-shortcuts-and-follow-chrome.zip \
               --clobber
             gh release edit "$TAG" --title "X Multilingual Keyboard Shortcuts & Follow ${TAG}" --notes-file "$NOTES_FILE"
           else
             gh release create "$TAG" \
               dist/x-multilingual-keyboard-shortcuts-and-follow.user.js \
-              dist/x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip \
               dist/x-multilingual-keyboard-shortcuts-and-follow-chrome.zip \
               --target main \
               --title "X Multilingual Keyboard Shortcuts & Follow ${TAG}" \
               --notes-file "$NOTES_FILE"
           fi
-
-          # Backfill release notes for any existing releases missing "What's Changed"
-          for EXISTING_TAG in $(gh release list --limit 30 --json tagName -q '.[].tagName'); do
-            [ "$EXISTING_TAG" = "$TAG" ] && continue
-            EXISTING_VER="${EXISTING_TAG#v}"
-            EXISTING_BODY="$(gh release view "$EXISTING_TAG" --json body -q '.body')"
-            if ! printf '%s' "$EXISTING_BODY" | grep -q "### What's Changed"; then
-              write_release_notes "$EXISTING_VER" "$NOTES_FILE"
-              gh release edit "$EXISTING_TAG" --title "X Multilingual Keyboard Shortcuts & Follow ${EXISTING_TAG}" --notes-file "$NOTES_FILE"
-            fi
-          done
           rm -f "$NOTES_FILE"
 
       - name: Authenticate to Google Cloud (Chrome Web Store API)
         id: cws_auth
+        if: github.event_name == 'workflow_dispatch' || steps.diff_check.outputs.has_code_changes == 'true'
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: projects/886328069598/locations/global/workloadIdentityPools/github/providers/github
@@ -119,6 +142,7 @@ jobs:
           access_token_scopes: https://www.googleapis.com/auth/chromewebstore
 
       - name: Upload to Chrome Web Store (CWS API v2)
+        if: github.event_name == 'workflow_dispatch' || steps.diff_check.outputs.has_code_changes == 'true'
         env:
           ACCESS_TOKEN: ${{ steps.cws_auth.outputs.access_token }}
           CWS_PUBLISHER_ID: ${{ secrets.CWS_PUBLISHER_ID || '0ad8e2f8-f351-4bef-ae4c-32635ae702cb' }}

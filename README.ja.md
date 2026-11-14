@@ -2,7 +2,7 @@
 
 **言語 (Languages)**: [English](README.md) | [한국어](README.ko.md) | [中文](README.zh.md) | [日本語](README.ja.md)
 
-[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.16-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-v1.0.17-1d9bf0?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/helbbdgikebbpbjjejmkkappejlhaglf)
 
 IME（日本語かな・韓国語・中国語・ロシア語・アラビア語・全角入力など）を英数モードに切り替えることなく、**X.com (旧Twitter) のすべての標準キーボードショートカット（`?`）**に加えて、**フォロー/フォロー解除（`F`）**、**片思いフィルター（`Shift+F`）**、**確認ダイアログ操作（`Y`/`N`）**、**フォロワー/フォロー中タブ移動（`G` `V` / `G` `W` / `G` `O`）**をそのまま使える Chrome 拡張機能です。
 
@@ -10,7 +10,7 @@ IME（日本語かな・韓国語・中国語・ロシア語・アラビア語�
 
 ## デモ動画 (Demo Video)
 
-[![デモ動画を見る (MP4)](store-assets/demo-video.gif)](store-assets/demo-video.mp4)
+[![デモ動画を見る (MP4)](store-assets/screenshot-0-home-shortcuts.png)](store-assets/demo-video.mp4)
 
 > **[高画質 MP4 動画を表示 / ダウンロード (`store-assets/demo-video.mp4`)](store-assets/demo-video.mp4)** — 画面右下にリアルタイムのキー入力イベント HUD（`G + V`、`J / K`、`F`、`Y / N`、`G + W`、`G + O`）が表示されます。
 
@@ -19,7 +19,7 @@ IME（日本語かな・韓国語・中国語・ロシア語・アラビア語�
 ## 主な機能
 
 1. **フォロー / フォロー解除 / フォローバックのショートカット（デフォルト：`F`）**
-   - **プロフィール＆ポスト詳細（status）ページ**：ユーザープロフィールやポスト詳細ページで `F` キーを押すと、即座に**フォロー**、**フォロー中（解除）**、**フォロー백**ボタンをクリックします。
+   - **プロフィール＆ポスト詳細（status）ページ**：ユーザープロフィールやポスト詳細ページで `F` キーを押すと、即座に**フォロー**、**フォロー中（解除）**、**フォローバック**ボタンをクリックします。
    - **フォロワー・フォロー中リスト（`/verified_followers`、`/followers`、`/following`）**：`J` / `K` キーでユーザーを選択（長押しで連続スクロール対応）し、`F` キーで選択中のユーザーをフォロー・フォローバック・フォロー解除できます。
    - **ホバーカード**：プロフィールのホバーカードが表示されている時は、ホバーカード内のフォロー/解除ボタンを優先して操作します。
 2. **確認ダイアログのショートカット（`Y` / `N`）**
@@ -36,7 +36,7 @@ IME（日本語かな・韓国語・中国語・ロシア語・アラビア語�
 7. **フローティング「ポスト済」ボタンの最小化（デフォルト：オン）**
    - `/home` および `/notifications*` でタイムライン本文を隠してしまう青いフローティングボタンを、右上の超小型半透明アイコン（`↑ .`、ホバー時にテキスト展開）に最小化します。拡張機能ポップアップからオン/オフを切り替えられます。
 8. **ホームタブの数字キー切り替え（`1`–`9`）**
-   - `/home` で `1`–`9`（または `G` の後に `1`–`9` / `0`）を押すと、上部のタブ（おすすめ、フォロー中、リストなど）に直接移動します。各タブ名の横に数字ヒントが表示されます。
+   - `/home` で `1`–`9` を押すと、上部のタブ（おすすめ、フォロー中、リストなど）に直接移動します。各タブ名の横に数字ヒントが表示されます。
 
 ---
 
@@ -46,9 +46,9 @@ IME（日本語かな・韓国語・中国語・ロシア語・アラビア語�
 | --- | --- |
 | ![ホーム画面](store-assets/screenshot-0-home-shortcuts.png) | ![認証済みフォロワー](store-assets/screenshot-1-verified-followers-jk.png) |
 
-| フォロー解除確認モーダル (`Y / N`) | フォロワー (`G + W`) ＆フォロー中 (`G + O`) タブ移動 |
-| --- | --- |
-| ![フォロー解除確認](store-assets/screenshot-2-unfollow-confirm-yn.png) | ![フォロワータブ](store-assets/screenshot-3-followers-tab-gw.png) |
+| フォロー解除確認モーダル (`Y / N`) | フォロワータブ (`G + W`) | フォロー中タブ (`G + O`) |
+| --- | --- | --- |
+| ![フォロー解除確認](store-assets/screenshot-2-unfollow-confirm-yn.png) | ![フォロワータブ](store-assets/screenshot-3-followers-tab-gw.png) | ![フォロー中タブ](store-assets/screenshot-4-following-tab-go.png) |
 
 ---
 
@@ -64,7 +64,8 @@ IME（日本語かな・韓国語・中国語・ロシア語・アラビア語�
 | `G` の後に `V` | **認証済みフォロワー**（`/verified_followers`）を開く |
 | `G` の後に `W` | **フォロワー**（`/followers`）を開く |
 | `G` の後に `O` | **フォロー中**（`/following`）を開く |
-| `E` | リポストメニューを開いて**引用（Quote）**を直接選択 |
+| `1`–`9` | `/home` で上部のタブ（おすすめ、フォロー中、リストなど）を直接切り替え |
+| `E` | リポストメニューを開く / 開いている場合は**引用（Quote）**を選択 |
 
 ### X.com 標準ショートカット（日・韓・中 多言語 IME 自動変換対応）
 
@@ -73,13 +74,14 @@ IME（日本語かな・韓国語・中国語・ロシア語・アラビア語�
 | `?` / `.` | ショートカット一覧を表示（`?`）/ 新しいポストを読み込む（`.`） |
 | `J` / `K` *(長押し対応)* | 次 / 前のポストまたはユーザーへ移動 |
 | `Space` / `Enter` | ページスクロール（`Space`）/ 選択したポストを開く（`Enter`） |
-| `N` / `⌘+Enter` | 新規ポスト作成（`N`）/ ポスト送信（`⌘+Enter`） |
+| `N` / `⌘+Enter` (`⌘↵`) / `Ctrl+Enter` (`Ctrl↵`) | 新規ポスト作成（`N`）/ ポスト・返信・DM送信（macOS: `⌘+Enter` / `⌘↵`、Windows/Linux: `Ctrl+Enter` / `Ctrl↵`） |
 | `/` | 検索バーにフォーカス |
 | `L` / `R` / `T` | いいね（`L`）/ 返信（`R`）/ リポスト（`T`） |
 | `S` / `B` | 共有（`S`）/ ブックマーク（`B`） |
 | `U` / `X` | ミュート（`U`）/ ブロック（`X`） |
 | `O` / `I` / `M` | 画像を拡大（`O`）/ DM ドック（`I`）/ 動画ミュート（`M`） |
-| `G` + `H/E/N/R/P/F/T/L/I/M/G/C/S/B/U/D` | ホーム、話題を検索、通知、연絡（メンション）、プロフィール、下書き、予約済み、いいね、リスト、メッセージ、Grok、Creator Studio、設定、ブックマーク、アカウント切り替え、表示設定へ移動 |
+| `G` + `H/E/N/R/P/F/T/L/I/M/G/C/S/B/U/D` | ホーム、話題を検索、通知、メンション、プロフィール、下書き、予約済み、いいね、リスト、メッセージ、Grok、Creator Studio、設定、ブックマーク、アカウント切り替え、表示設定へ移動 |
+| `A` + `D/Space/M` | オーディオドックへ移動（`D`）/ 再生・一時停止（`Space`）/ ミュート切り替え（`M`） |
 
 ---
 
@@ -94,8 +96,15 @@ IME（日本語かな・韓国語・中国語・ロシア語・アラビア語�
 
 ### Safari (macOS / iOS) — Userscript 方式
 1. Safari 用の無料オープンソース拡張機能 [Userscripts](https://apps.apple.com/app/userscripts/id1463298887) または [Stay](https://apps.apple.com/app/stay-for-safari/id1591620171) / Tampermonkey をインストールします。
-2. [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest) から **[`x-multilingual-keyboard-shortcuts-and-follow.user.js`](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest/download/x-multilingual-keyboard-shortcuts-and-follow.user.js)**（または `x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip`）をダウンロードし、Userscripts のスクリプトフォルダに追加します。
-3. Safari で `https://x.com` を開くと、すべての多言語ショートカット（`?`）、`F` フォロー/解除、`Y`/`N` 確認モーダル、`G V/W/O` タブ移動がすぐに使えます。スクリプトメニューからヒント表示の切り替えやフォローキーの変更も可能です。
+2. [GitHub Releases](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest) から **[`x-multilingual-keyboard-shortcuts-and-follow.user.js`](https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/releases/latest/download/x-multilingual-keyboard-shortcuts-and-follow.user.js)** をダウンロードし、Userscripts のスクリプトフォルダに追加します。
+3. Safari で `https://x.com` を開くと、すべての多言語ショートカット（`?`）、`F` フォロー/解除、`Y`/`N` 確認モーダル、`Shift + F` 片思いフィルター、`G V/W/O` タブ移動がすぐに使えます。
+   - **Userscript メニュー設定（`GM_registerMenuCommand`）**：スクリプトマネージャーのメニューから各種設定を直接変更できます（`localStorage` に保存）：
+     - ショートカットヒントの表示 / 非表示切り替え
+     - フォロー中・フォロワーの片思い（未相互）フィルター切り替え（`Shift + F`）
+     - 「ポスト済」フローティングボタンの最小化切り替え
+     - フォローショートカットキーのカスタマイズ
+     - フローティングボタンデザインの選択（**1**: 標準 右上グラスカプセル、**2**: コンパクト タブバー密着スリムバー、**3**: ミニマル 超小型アイコン `↑ .`）
+     - UI言語設定（`ko`、`en`、`zh`、`ja`、`auto`）
 
 ---
 

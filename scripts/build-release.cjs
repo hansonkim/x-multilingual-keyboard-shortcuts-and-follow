@@ -5,11 +5,12 @@ const { execFileSync } = require('node:child_process');
 const rootDir = path.resolve(__dirname, '..');
 const distDir = path.join(rootDir, 'dist');
 const manifest = JSON.parse(fs.readFileSync(path.join(rootDir, 'manifest.json'), 'utf8'));
+const sharedKeymapJs = fs.readFileSync(path.join(rootDir, 'shared-keymap.js'), 'utf8');
 const contentJs = fs.readFileSync(path.join(rootDir, 'content.js'), 'utf8');
 
 // 0. Pre-release test gates: unit tests + ego-browser (princejoo profile) live E2E when available
 execFileSync(process.execPath, [path.join(rootDir, 'test.cjs')], { cwd: rootDir, stdio: 'inherit' });
-if (!process.env.CI && !process.env.SKIP_EGO_E2E) {
+if (process.env.RUN_EGO_E2E === '1') {
   execFileSync(process.execPath, [path.join(rootDir, 'scripts', 'test-e2e-ego.cjs')], {
     cwd: rootDir,
     stdio: 'inherit'
@@ -36,22 +37,26 @@ const userscriptHeader = `// ==UserScript==
 `;
 
 const userscriptPath = path.join(distDir, 'x-multilingual-keyboard-shortcuts-and-follow.user.js');
-fs.writeFileSync(userscriptPath, userscriptHeader + contentJs, 'utf8');
+fs.writeFileSync(userscriptPath, userscriptHeader + sharedKeymapJs + '\n\n' + contentJs, 'utf8');
 
-// 2. Build Safari Userscript bundle ZIP & Chrome Extension ZIP
-const safariZipPath = path.join(distDir, 'x-multilingual-keyboard-shortcuts-and-follow-safari-userscript.zip');
+// 2. Build Chrome Extension ZIP
 const chromeZipPath = path.join(distDir, 'x-multilingual-keyboard-shortcuts-and-follow-chrome.zip');
 
-if (fs.existsSync(safariZipPath)) fs.unlinkSync(safariZipPath);
-if (fs.existsSync(chromeZipPath)) fs.unlinkSync(chromeZipPath);
+if (fs.existsSync(distDir)) {
+  for (const file of fs.readdirSync(distDir)) {
+    if (file.endsWith('.zip')) {
+      fs.unlinkSync(path.join(distDir, file));
+    }
+  }
+}
 
-execFileSync('zip', ['-j', safariZipPath, userscriptPath], { cwd: rootDir, stdio: 'inherit' });
 execFileSync(
   'zip',
   [
     '-r',
     chromeZipPath,
     'manifest.json',
+    'shared-keymap.js',
     'content.js',
     'popup.html',
     'popup.js',
@@ -64,5 +69,4 @@ execFileSync(
 
 console.log(`Built packages for v${manifest.version} in ${distDir}:`);
 console.log(' -', path.basename(userscriptPath));
-console.log(' -', path.basename(safariZipPath));
 console.log(' -', path.basename(chromeZipPath));

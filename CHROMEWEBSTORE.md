@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — X Multilingual Keyboard Shortcuts & Follow
 
-> Last Updated: 2026-11-11
+> Last Updated: 2026-11-14
 
 ## Store Listing
 
@@ -26,8 +26,8 @@ X Multilingual Keyboard Shortcuts & Follow는 한/영 키를 전환하지 않고
    - X.com 어느 화면에서나 G V(인증된 팔로워), G W(팔로워), G O(팔로잉)를 눌러 해당 탭으로 즉시 이동합니다.
    - 팔로잉(/following), 팔로워(/followers), 인증된 팔로워(/verified_followers) 페이지 상단 고정 플로팅 필터 바를 클릭하거나 Shift + F(Shift + ㄹ)를 누르면 /following에서는 나를 팔로우하지 않는 계정만, /followers 및 /verified_followers에서는 나의 팔로워 중 내가 아직 맞팔로우하지 않은 계정만 필터링하며, J / K 이동 시 숨겨진 계정을 자동으로 건너뛰고 선택된 카드를 고정 헤더 아래에 정렬합니다.
 
-4. 홈 상단 탭 숫자 이동 (1–9 / G + 1–9, 0)
-   - 홈(/home) 화면에서 숫자 1–9(또는 G 입력 후 1–9 / 0)를 눌러 추천, 팔로잉, 사용자 리스트 등 상단 탭으로 바로 전환하며, 각 탭 이름 옆에 숫자 단축키 힌트가 표시됩니다.
+4. 홈 상단 탭 숫자 이동 (1–9)
+   - 홈(/home) 화면에서 숫자 1–9를 눌러 추천, 팔로잉, 사용자 리스트 등 상단 탭으로 바로 전환하며, 각 탭 이름 옆에 숫자 단축키 힌트가 표시됩니다.
 
 5. X.com (?) 전체 기본 단축키 다국어 IME 완벽 지원 및 한글 조합 전송 보정
    - 한글(ㅎ, ㅓ, ㅏ, ㅣ 등), 일본어, 중국어, 러시아어, 아랍어, 전각 문자 입력 상태에서도 영문 전환 없이 모든 X 기본 단축키(?, J, K, Space, ., N, /, L, R, T, S, B, U, X, Enter, O, I, M, 인용 E, G + H/E/N/R/P/F/T/L/I/M/G/C/S/B/U/D, A + D/Space/M)가 그대로 작동합니다.
@@ -72,7 +72,6 @@ https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/issues
 | Screenshot 3 (Unfollow Confirm / Y·N) | 1280×800 | ✅ Ready | `store-assets/screenshot-2-unfollow-confirm-yn.png` |
 | Screenshot 4 (Followers Tab / G W) | 1280×800 | ✅ Ready | `store-assets/screenshot-3-followers-tab-gw.png` |
 | Screenshot 5 (Following Tab / G O) | 1280×800 | ✅ Ready | `store-assets/screenshot-4-following-tab-go.png` |
-| Screenshot (Default Alias) | 1280×800 | ✅ Ready | `store-assets/screenshot-1280x800.png` |
 | Demo Video (Key Event HUD + Privacy Masked) | 1280×800 MP4 | ✅ Ready | `store-assets/demo-video.mp4` |
 | Small Promo Tile [RECOMMENDED] | 440×280 | ✅ Ready | `store-assets/promo-440x280.png` |
 
@@ -80,7 +79,7 @@ https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/issues
 
 | Permission | Type | Justification |
 |------------|------|---------------|
-| `storage` | permissions | Saves the user's customized keyboard shortcut preference and UI hint visibility setting so they persist across browser sessions. |
+| `storage` | permissions | Saves user preferences across browser sessions: customized keyboard shortcuts, UI hint visibility toggle, non-follower filter toggle state (`filterNonFollowers`), compact pill toggle and design selection (`floatingButtonDesign` / `compactPillDesign`), and UI language selection (`uiLanguage` / `uiLang`). |
 | `https://x.com/*`, `https://twitter.com/*` | content_scripts | Listens for keyboard shortcuts on X.com pages, displays optional shortcut hints on buttons, and triggers Follow/Unfollow or navigation actions when pressed. |
 
 ## Privacy & Data Use
@@ -105,12 +104,13 @@ https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/issues
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
+| 1.0.17 | 2026-11-14 | Add shared multilingual keymap module (adding Hebrew, Greek, and Thai layouts), 180ms window-focus guard and pure-ASCII orphan keyup filter while keeping IME recovery, safe status-page follow targeting (ignoring self-posts and sidebar recommendations), pending follow-request (-cancel) support, dynamic platform send shortcut badges, storage-only live config sync, Safari Userscript menu/pill/i18n persistence, accessible dark-mode popup recorder, and g + digit removal on /home. | Draft |
 | 1.0.16 | 2026-11-11 | Yield the main thread cooperatively during Shift+F follow-list filtering, eliminate redundant DOM/style writes and MutationObserver feedback loops, apply CSS containment to collapsed rows, and keep UI interactions (J/K, F, Y/N, manual scroll, clicks) responsive. | Submitted |
-| 1.0.15 | 2026-11-11 | Fix shortcuts (such as Korean `ㅜ` → `N` Compose Post) firing in XChat (`/i/chat`, floating chat drawer, and overlays), closed/nested Shadow DOMs, `EditContext`, `[role="combobox"]`, iframes, modal dialogs, and transient IME popups; also block untrusted synthetic shortcut events while Shadow DOM inputs are active. | Submitted |
-| 1.0.14 | 2026-11-11 | Extend floating filter bar and Shift+F shortcut to /followers and /verified_followers to show only followers you have not followed back yet | Draft |
-| 1.0.13 | 2026-11-06 | Render the compact floating "Posted" pill label via CSS (`data-xfs-label` + `::before`) instead of overwriting X's React-owned text node, preventing potential timeline render errors. | Draft |
-| 1.0.12 | 2026-11-04 | Fix Windows IME `Ctrl+Enter` / `Cmd+Enter` post submission dropping the last composed syllable by waiting for `compositionend` and Draft.js/React state sync while swallowing premature follow-up `Enter` keydowns. | Draft |
-| 1.0.11 | 2026-11-03 | Add tab switching on `/home` with `1`–`9` (or `g` + `1`–`9`/`0`) and show the number hints on the top tabs. | Draft |
+| 1.0.15 |2026-11-11 | Fix shortcuts (such as Korean `ㅜ` → `N` Compose Post) firing in XChat (`/i/chat`, floating chat drawer, and overlays), closed/nested Shadow DOMs, `EditContext`, `[role="combobox"]`, iframes, modal dialogs, and transient IME popups; also block untrusted synthetic shortcut events while Shadow DOM inputs are active. | Submitted |
+| 1.0.14 | 2026-11-11 | Extend floating filter bar and Shift+F shortcut to /followers and /verified_followers to show only followers you have not followed back yet | Superseded |
+| 1.0.13 | 2026-11-06 | Render the compact floating "Posted" pill label via CSS (`data-xfs-label` + `::before`) instead of overwriting X's React-owned text node, preventing potential timeline render errors. | Superseded |
+| 1.0.12 | 2026-11-04 | Fix Windows IME `Ctrl+Enter` / `Cmd+Enter` post submission dropping the last composed syllable by waiting for `compositionend` and Draft.js/React state sync while swallowing premature follow-up `Enter` keydowns. | Superseded |
+| 1.0.11 | 2026-11-03 | Add tab switching on `/home` with `1`–`9` (or `g` + `1`–`9`/`0`) and show the number hints on the top tabs. | Superseded |
 | 1.0.10 | 2026-10-29 | Add Compact Floating "Posted" Pill on `/home` and `/notifications*` (default: On) with 3 selectable designs (`1. Top-right glass capsule`, `2. Top-docked slim bar`, `3. Top-right micro icon ↑ .`), instant live popup-to-tab updates, and 4-language label localization. | Submitted |
 | 1.0.9 | 2026-10-25 | Add Non-Follower Filter (`Shift+F` / sticky toggle bar) on `/following` to show only accounts that do not follow back, skip hidden mutuals on `J`/`K`, and align selected rows below the sticky header. | Published |
 | 1.0.8 | 2026-10-16 | Add 4-language UI support (Korean, English, Chinese, Japanese) with auto-detection and language selector in the extension popup panel, plus Safari Userscript support. | Published |

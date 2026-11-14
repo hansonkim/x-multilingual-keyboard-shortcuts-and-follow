@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
   <meta charset="utf-8">
   <style>
@@ -32,7 +32,7 @@
     h2 {
       font-size: 12px;
       margin: 14px 0 6px;
-      color: #536471;
+      color: light-dark(#536471, #8b98a5);
       border-bottom: 1px solid rgba(128, 128, 128, 0.25);
       padding-bottom: 4px;
     }
@@ -173,8 +173,10 @@
     <span data-i18n="extModalDesc">언팔로우·차단·뮤트 확인 모달에서 확인(Y) / 취소(N)</span>
     <kbd>G + V/W/O</kbd>
     <span data-i18n="extTabDesc">인증된 팔로워(V) / 팔로워(W) / 팔로잉(O) 이동</span>
+    <kbd>1 – 9</kbd>
+    <span data-i18n="extHomeTabDesc">홈(/home) 상단 탭 바로 전환</span>
     <kbd>E</kbd>
-    <span data-i18n="extQuoteDesc">재게시 메뉴 열기 / 인용(Quote) 바로 선택</span>
+    <span data-i18n="extQuoteDesc">재게시 메뉴 열기 / 인용(Quote) 선택</span>
   </div>
 
   <h2 data-i18n="xSectionTitle">X (?) 전체 단축키 (한·일·중 다국어 자동 변환)</h2>
@@ -185,7 +187,7 @@
     <span data-i18n="xJkDesc">다음 / 이전 게시물·계정 이동</span>
     <kbd>Space / Enter</kbd>
     <span data-i18n="xSpaceEnterDesc">페이지 내리기(Space) / 게시물 상세 열기(Enter)</span>
-    <kbd>N / ⌘+Enter</kbd>
+    <kbd id="x-send-kbd">N / ⌘+Enter</kbd>
     <span data-i18n="xNewPostDesc">새 게시물 작성(N) / 게시물 전송(⌘+Enter)</span>
     <kbd>/</kbd>
     <span data-i18n="xSearchDesc">검색창 포커스</span>
@@ -206,6 +208,7 @@
     <kbd>A + D/Space/M</kbd>
     <span data-i18n="xAudioDesc">오디오독 이동(D) / 재생·일시중지(Space) / 음소거(M)</span>
   </div>
+  <script src="shared-keymap.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

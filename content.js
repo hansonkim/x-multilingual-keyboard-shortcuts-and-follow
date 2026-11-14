@@ -1,82 +1,26 @@
-const DEFAULT_SHORTCUT = {
-  key: 'f',
-  code: 'KeyF',
-  ctrl: false,
-  alt: false,
-  shift: false,
-  meta: false
-};
-
-const LAYOUT_CHAR_TO_CODE = {
-  // Korean 2-beolsik (두벌식 26키)
-  'ㅂ': 'KeyQ', 'ㅃ': 'KeyQ', 'ㅈ': 'KeyW', 'ㅉ': 'KeyW',
-  'ㄷ': 'KeyE', 'ㄸ': 'KeyE', 'ㄱ': 'KeyR', 'ㄲ': 'KeyR',
-  'ㅅ': 'KeyT', 'ㅆ': 'KeyT', 'ㅛ': 'KeyY', 'ㅕ': 'KeyU',
-  'ㅑ': 'KeyI', 'ㅐ': 'KeyO', 'ㅒ': 'KeyO', 'ㅔ': 'KeyP', 'ㅖ': 'KeyP',
-  'ㅁ': 'KeyA', 'ㄴ': 'KeyS', 'ㅇ': 'KeyD', 'ㄹ': 'KeyF',
-  'ㅎ': 'KeyG', 'ㅗ': 'KeyH', 'ㅓ': 'KeyJ', 'ㅏ': 'KeyK',
-  'ㅣ': 'KeyL', 'ㅋ': 'KeyZ', 'ㅌ': 'KeyX', 'ㅊ': 'KeyC',
-  'ㅍ': 'KeyV', 'ㅠ': 'KeyB', 'ㅜ': 'KeyN', 'ㅡ': 'KeyM',
-  // Japanese JIS Kana (かな入力 26키 + 구두점)
-  'た': 'KeyQ', 'て': 'KeyW', 'い': 'KeyE', 'ぃ': 'KeyE', 'す': 'KeyR',
-  'か': 'KeyT', 'ん': 'KeyY', 'な': 'KeyU', 'に': 'KeyI', 'ら': 'KeyO', 'せ': 'KeyP',
-  'ち': 'KeyA', 'と': 'KeyS', 'し': 'KeyD', 'は': 'KeyF', 'き': 'KeyG',
-  'く': 'KeyH', 'ま': 'KeyJ', 'の': 'KeyK', 'り': 'KeyL',
-  'つ': 'KeyZ', 'っ': 'KeyZ', 'さ': 'KeyX', 'そ': 'KeyC', 'ひ': 'KeyV',
-  'こ': 'KeyB', 'み': 'KeyN', 'も': 'KeyM',
-  'る': 'Period', 'め': 'Slash',
-  // Chinese Zhuyin / Bopomofo (注音輸入法 26키 + 구두점)
-  'ㄆ': 'KeyQ', 'ㄊ': 'KeyW', 'ㄍ': 'KeyE', 'ㄐ': 'KeyR', 'ㄔ': 'KeyT',
-  'ㄗ': 'KeyY', 'ㄧ': 'KeyU', 'ㄛ': 'KeyI', 'ㄟ': 'KeyO', 'ㄣ': 'KeyP',
-  'ㄇ': 'KeyA', 'ㄋ': 'KeyS', 'ㄎ': 'KeyD', 'ㄑ': 'KeyF', 'ㄕ': 'KeyG',
-  'ㄘ': 'KeyH', 'ㄨ': 'KeyJ', 'ㄜ': 'KeyK', 'ㄠ': 'KeyL',
-  'ㄈ': 'KeyZ', 'ㄌ': 'KeyX', 'ㄏ': 'KeyC', 'ㄒ': 'KeyV', 'ㄖ': 'KeyB',
-  'ㄙ': 'KeyN', 'ㄩ': 'KeyM',
-  'ㄡ': 'Period', 'ㄥ': 'Slash',
-  // Russian (ЙЦУКЕН 26키 + 구두점)
-  'й': 'KeyQ', 'ц': 'KeyW', 'у': 'KeyE', 'к': 'KeyR', 'е': 'KeyT',
-  'н': 'KeyY', 'г': 'KeyU', 'ш': 'KeyI', 'щ': 'KeyO', 'з': 'KeyP',
-  'ф': 'KeyA', 'ы': 'KeyS', 'в': 'KeyD', 'а': 'KeyF', 'п': 'KeyG',
-  'р': 'KeyH', 'о': 'KeyJ', 'л': 'KeyK', 'д': 'KeyL', 'я': 'KeyZ',
-  'ч': 'KeyX', 'с': 'KeyC', 'м': 'KeyV', 'и': 'KeyB', 'т': 'KeyN', 'ь': 'KeyM',
-  'ю': 'Period',
-  // Arabic (26키 + 구두점)
-  'ض': 'KeyQ', 'ص': 'KeyW', 'ث': 'KeyE', 'ق': 'KeyR', 'ف': 'KeyT',
-  'غ': 'KeyY', 'ع': 'KeyU', 'ه': 'KeyI', 'خ': 'KeyO', 'ح': 'KeyP',
-  'ش': 'KeyA', 'س': 'KeyS', 'ي': 'KeyD', 'ب': 'KeyF', 'ل': 'KeyG',
-  'ا': 'KeyH', 'ت': 'KeyJ', 'ن': 'KeyK', 'م': 'KeyL', 'ئ': 'KeyZ',
-  'ء': 'KeyX', 'ؤ': 'KeyC', 'ر': 'KeyV', 'لا': 'KeyB', 'ى': 'KeyN', 'ة': 'KeyM',
-  'ز': 'Period', 'ظ': 'Slash', '؟': 'Slash',
-  // Hebrew / Greek / Thai / macOS Option common mappings
-  'כ': 'KeyF', 'ט': 'KeyY', 'מ': 'KeyN', 'ח': 'KeyJ', 'ל': 'KeyK',
-  'φ': 'KeyF', 'υ': 'KeyY', 'ν': 'KeyN', 'ξ': 'KeyJ', 'κ': 'KeyK',
-  'ด': 'KeyF', 'ั': 'KeyY', 'ื': 'KeyN', '่': 'KeyJ', 'า': 'KeyK',
-  'ƒ': 'KeyF',
-  // Punctuation & CJK Full-width / Half-width equivalents for '.', '/', '?', 'Space'
-  '.': 'Period', '。': 'Period', '．': 'Period', '｡': 'Period',
-  '/': 'Slash', '?': 'Slash', '／': 'Slash', '？': 'Slash', '・': 'Slash', '･': 'Slash',
-  ' ': 'Space', '\u3000': 'Space'
-};
-
-const MODIFIER_CODES = new Set([
-  'ControlLeft', 'ControlRight',
-  'ShiftLeft', 'ShiftRight',
-  'AltLeft', 'AltRight',
-  'MetaLeft', 'MetaRight'
-]);
-
-const IME_SWITCH_CODES = new Set([
-  'HangulMode', 'HanjaMode', 'KanaMode', 'KanjiMode',
-  'Lang1', 'Lang2', 'CapsLock', 'Alphanumeric',
-  'Convert', 'NonConvert', 'Eisuu', ' RomanCharacters'
-]);
+const {
+  DEFAULT_SHORTCUT,
+  LAYOUT_CHAR_TO_CODE,
+  MODIFIER_KEYS,
+  MODIFIER_CODES,
+  IME_SWITCH_CODES,
+  NON_PRINTABLE_IME_KEYS,
+  CODE_TO_KEY_LABEL,
+  normalizeFullWidthChar,
+  isApplePlatform,
+  resolveKeyCode,
+  formatShortcutLabel
+} =
+  typeof globalThis !== 'undefined' && globalThis.XFSKeymap
+    ? globalThis.XFSKeymap
+    : (typeof require === 'function' ? require('./shared-keymap.js') : {});
 
 // All X.com "?" Shortcuts:
-// Single-key shortcuts (no prefix): ?, j, k, Space, ., n, /, l, r, t, s, b, u, x, Enter, o, i, m (+ e for quote helper)
+// Single-key shortcuts (no prefix): ?, j, k, Space, ., n, /, l, r, t, s, b, u, x, Enter, o, i, m
 const SINGLE_X_SHORTCUT_CODES = new Set([
   'KeyJ', 'KeyK', 'Space', 'Period', 'KeyN', 'Slash',
   'KeyL', 'KeyR', 'KeyT', 'KeyS', 'KeyB', 'KeyU',
-  'KeyX', 'Enter', 'KeyO', 'KeyI', 'KeyM', 'KeyE'
+  'KeyX', 'Enter', 'KeyO', 'KeyI', 'KeyM'
 ]);
 
 // "g + ..." navigation shortcuts in "?" modal:
@@ -103,57 +47,15 @@ const MUTUAL_BADGE_TEXT_RE =
   /^(follows you|나를 팔로우합니다|나를 팔로우함|フォローされています|关注了你|已关注你|跟隨你|подписан\(а\) на вас|читает вас|يتابعك)$/i;
 const PREFIX_TIMEOUT_MS = 1000;
 
-function normalizeFullWidthChar(ch) {
-  const cp = ch.codePointAt(0);
-  // Full-width ASCII variants (！ to ～, U+FF01..U+FF5E -> U+0021..U+007E) used in Japanese/Chinese IMEs
-  if (cp >= 0xff01 && cp <= 0xff5e) {
-    return String.fromCharCode(cp - 0xfee0);
-  }
-  return ch;
-}
-
 function isQuestionMarkEvent(input) {
   if (!input) return false;
   const rawKey = typeof input.key === 'string' ? input.key : '';
   const normKey = rawKey.length === 1 ? normalizeFullWidthChar(rawKey) : rawKey;
-  if (normKey === '?' || rawKey === '？' || rawKey === '؟') return true;
+  if (normKey === '?' || rawKey === '？' || rawKey === '؟' || rawKey === ';') return true;
   if (input.shiftKey && (input.code === 'Slash' || LAYOUT_CHAR_TO_CODE[rawKey] === 'Slash' || LAYOUT_CHAR_TO_CODE[normKey] === 'Slash')) {
     return true;
   }
   return false;
-}
-
-function resolveKeyCode(input) {
-  if (!input) return null;
-  const { code, key, keyCode, which } = input;
-  if (code && code !== 'Unidentified' && !MODIFIER_CODES.has(code) && !IME_SWITCH_CODES.has(code)) {
-    return code;
-  }
-  if (key === 'Enter') return 'Enter';
-  if (key === 'Escape') return 'Escape';
-  if (key === 'Tab') return 'Tab';
-  if (key === ' ') return 'Space';
-  if (typeof key === 'string' && key.length >= 1) {
-    if (LAYOUT_CHAR_TO_CODE[key]) return LAYOUT_CHAR_TO_CODE[key];
-    if (key.length === 1) {
-      const norm = normalizeFullWidthChar(key);
-      const lower = norm.toLowerCase();
-      if (lower >= 'a' && lower <= 'z') return 'Key' + lower.toUpperCase();
-      if (lower >= '0' && lower <= '9') return 'Digit' + lower;
-      if (LAYOUT_CHAR_TO_CODE[lower]) return LAYOUT_CHAR_TO_CODE[lower];
-      if (LAYOUT_CHAR_TO_CODE[norm]) return LAYOUT_CHAR_TO_CODE[norm];
-    }
-  }
-  const numCode = keyCode || which;
-  if (numCode && numCode !== 229) {
-    if (numCode >= 65 && numCode <= 90) return 'Key' + String.fromCharCode(numCode);
-    if (numCode >= 48 && numCode <= 57) return 'Digit' + String.fromCharCode(numCode);
-    if (numCode === 190) return 'Period';
-    if (numCode === 191) return 'Slash';
-    if (numCode === 32) return 'Space';
-    if (numCode === 13) return 'Enter';
-  }
-  return null;
 }
 
 function codeToNativeSpec(code, shiftKey = false) {
@@ -223,25 +125,6 @@ function codeToNativeSpec(code, shiftKey = false) {
   return null;
 }
 
-function formatShortcutLabel(sc) {
-  const parts = [];
-  if (sc.ctrl) parts.push('Ctrl');
-  if (sc.alt) parts.push('Alt');
-  if (sc.shift) parts.push('Shift');
-  if (sc.meta) parts.push('Meta');
-
-  const resolved = resolveKeyCode(sc) || sc.code;
-  let keyLabel = sc.key ? sc.key.toUpperCase() : 'F';
-  if (resolved?.startsWith('Key')) keyLabel = resolved.slice(3);
-  else if (resolved?.startsWith('Digit')) keyLabel = resolved.slice(5);
-  else if (resolved === 'Space' || sc.key === ' ') keyLabel = 'Space';
-  else if (resolved === 'Period') keyLabel = '.';
-  else if (resolved === 'Slash') keyLabel = sc.shift ? '?' : '/';
-
-  parts.push(keyLabel || 'F');
-  return parts.join('+');
-}
-
 let shortcut = { ...DEFAULT_SHORTCUT };
 let showUiHints = true;
 let filterNonFollowers = false;
@@ -252,6 +135,7 @@ let lastFocusedCellLink = null;
 let lastFocusedFilteredCell = null;
 let lastFocusedRowTop = null;
 let lastPathname = '';
+let lastFilterActive = false;
 let pendingPrefix = { key: null, until: 0 };
 
 const DIRECT_CELL_WORK_BUDGET = 80;
@@ -366,6 +250,13 @@ const rootCssVarCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
 function setRootCssVarIfChanged(docEl, prop, value) {
   if (!docEl?.style || typeof docEl.style.setProperty !== 'function') return false;
   const next = String(value);
+  if (typeof docEl.style.getPropertyValue === 'function') {
+    if (docEl.style.getPropertyValue(prop) === next) {
+      return false;
+    }
+    docEl.style.setProperty(prop, next);
+    return true;
+  }
   let map = rootCssVarCache?.get(docEl);
   if (map && map.get(prop) === next) {
     return false;
@@ -385,6 +276,7 @@ function syncPathnameState(pathname) {
     lastFocusedFilteredCell = null;
     lastFocusedRowTop = null;
     lastPathname = pathname;
+    lastFilterActive = false;
     clearAlignTimers();
     clearRestoreFocusTimers();
     clearFilterChunkTimer();
@@ -403,12 +295,15 @@ function getFilterNonFollowers() {
 function setFilterNonFollowers(enabled, persist = false) {
   const next = Boolean(enabled);
   const changed = filterNonFollowers !== next;
+  if (changed) {
+    lastFocusedRowTop = null;
+    lastFocusedFilteredCell = null;
+    clearFilterChunkTimer();
+  }
   filterNonFollowers = next;
   if (!filterNonFollowers) {
     lastFocusedFilteredCell = null;
-  }
-  if (changed) {
-    clearFilterChunkTimer();
+    lastFocusedRowTop = null;
   }
   if (persist) {
     try {
@@ -455,7 +350,8 @@ function setCompactPillDesign(design, persist = false) {
     try {
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
         chrome.storage.sync.set({ compactPillDesign });
-      } else if (typeof localStorage !== 'undefined') {
+      }
+      if (typeof localStorage !== 'undefined') {
         localStorage.setItem(LOCAL_STORAGE_COMPACT_PILL_DESIGN_KEY, compactPillDesign);
       }
     } catch (_) {}
@@ -484,7 +380,34 @@ const LOCAL_STORAGE_SHORTCUT_KEY = 'x_follow_shortcut_config';
 const LOCAL_STORAGE_HINTS_KEY = 'x_follow_shortcut_show_hints';
 const LOCAL_STORAGE_NON_FOLLOWERS_KEY = 'x_follow_shortcut_filter_non_followers';
 const LOCAL_STORAGE_COMPACT_PILL_KEY = 'x_follow_shortcut_compact_pill';
-const LOCAL_STORAGE_COMPACT_PILL_DESIGN_KEY = 'x_follow_shortcut_compact_pill_design';
+const LOCAL_STORAGE_COMPACT_PILL_DESIGN_KEY = 'xfs_compact_pill_design';
+const LOCAL_STORAGE_UI_LANG_KEY = 'xfs_ui_lang';
+
+function normalizeUiLang(lang) {
+  const s = String(lang || '').trim().toLowerCase();
+  if (['ko', 'en', 'zh', 'ja'].includes(s)) return s;
+  return 'auto';
+}
+
+function getUiLang() {
+  return uiLang || 'auto';
+}
+
+function setUiLang(lang, persist = false) {
+  const normalized = normalizeUiLang(lang);
+  uiLang = normalized === 'auto' ? null : normalized;
+  if (persist) {
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+        chrome.storage.sync.set({ uiLang: normalized });
+      }
+      if (typeof localStorage !== 'undefined') {
+        localStorage.setItem(LOCAL_STORAGE_UI_LANG_KEY, normalized);
+      }
+    } catch (_) {}
+  }
+  syncUiHints();
+}
 
 function loadFromLocalStorage() {
   try {
@@ -508,9 +431,18 @@ function loadFromLocalStorage() {
     if (rawCompactPill !== null) {
       compactNewPostsPill = rawCompactPill !== 'false';
     }
-    const rawCompactPillDesign = localStorage.getItem(LOCAL_STORAGE_COMPACT_PILL_DESIGN_KEY);
+    const rawCompactPillDesign =
+      localStorage.getItem(LOCAL_STORAGE_COMPACT_PILL_DESIGN_KEY) ||
+      localStorage.getItem('x_follow_shortcut_compact_pill_design');
     if (rawCompactPillDesign !== null) {
       compactPillDesign = normalizeCompactPillDesign(rawCompactPillDesign);
+    }
+    const rawUiLang =
+      localStorage.getItem(LOCAL_STORAGE_UI_LANG_KEY) ||
+      localStorage.getItem('x_follow_shortcut_ui_lang');
+    if (rawUiLang !== null) {
+      const norm = normalizeUiLang(rawUiLang);
+      uiLang = norm === 'auto' ? null : norm;
     }
   } catch (_) {}
 }
@@ -534,7 +466,11 @@ function getUserscriptMenuStrings() {
       toggleNonFollowers: '팔로잉·팔로워 미맞팔 계정만 보기 토글 (⇧F)',
       toggleCompactPill: '"게시됨" 플로팅 버튼 최소화 토글 (Toggle Compact Pill)',
       setFollowKey: '팔로우 단축키 변경 (Set Follow Shortcut Key)',
-      promptKey: (curr) => `팔로우 단축키를 입력하세요 (현재: ${curr}, 기본값: F):`
+      promptKey: (curr) => `팔로우 단축키를 입력하세요 (현재: ${curr}, 기본값: F):`,
+      setPillDesign: '플로팅 버튼 디자인 선택 (Pill Design 1/2/3)',
+      promptPillDesign: (curr) => `플로팅 버튼 디자인을 입력하세요 (1: 아이콘+글씨, 2: 텍스트만, 3: 미니 원형 아이콘 / 현재: ${curr}):`,
+      setLanguage: 'UI 언어 설정 (Set UI Language)',
+      promptLanguage: (curr) => `UI 언어를 입력하세요 (ko, en, zh, ja, auto / 현재: ${curr}):`
     };
   }
   if (lang === 'zh') {
@@ -543,7 +479,11 @@ function getUserscriptMenuStrings() {
       toggleNonFollowers: '关注/粉丝列表：切换仅看未互关用户 (⇧F)',
       toggleCompactPill: '切换精简浮动“已发帖”按钮 (Toggle Compact Pill)',
       setFollowKey: '修改关注快捷键 (Set Follow Shortcut Key)',
-      promptKey: (curr) => `请输入关注快捷键（当前：${curr}，默认：F）：`
+      promptKey: (curr) => `请输入关注快捷键（当前：${curr}，默认：F）：`,
+      setPillDesign: '选择浮动按钮样式 (Pill Design 1/2/3)',
+      promptPillDesign: (curr) => `请输入浮动按钮样式（1: 图标+文字, 2: 仅文字, 3: 迷你圆形图标 / 当前：${curr}）：`,
+      setLanguage: '设置界面语言 (Set UI Language)',
+      promptLanguage: (curr) => `请输入界面语言（ko, en, zh, ja, auto / 当前：${curr}）：`
     };
   }
   if (lang === 'ja') {
@@ -552,7 +492,11 @@ function getUserscriptMenuStrings() {
       toggleNonFollowers: 'フォロー中・フォロワー：未相互のみ表示切替 (⇧F)',
       toggleCompactPill: '「ポスト済」フローティングボタン最小化切替 (Toggle Compact Pill)',
       setFollowKey: 'フォローショートカット変更 (Set Follow Shortcut Key)',
-      promptKey: (curr) => `フォロー用ショートカットキーを入力してください（現在: ${curr}、デフォルト: F）:`
+      promptKey: (curr) => `フォロー用ショートカットキーを入力してください（現在: ${curr}、デフォルト: F）:`,
+      setPillDesign: 'フローティングボタンデザイン選択 (Pill Design 1/2/3)',
+      promptPillDesign: (curr) => `デザイン番号を入力してください（1: アイコン+文字, 2: テキストのみ, 3: ミニ円形アイコン / 현재: ${curr}）:`,
+      setLanguage: 'UI言語設定 (Set UI Language)',
+      promptLanguage: (curr) => `UI言語を入力してください（ko, en, zh, ja, auto / 현재: ${curr}）:`
     };
   }
   return {
@@ -560,28 +504,66 @@ function getUserscriptMenuStrings() {
     toggleNonFollowers: 'Following/Followers: Toggle Unreciprocated Only (⇧F)',
     toggleCompactPill: 'Toggle Compact Floating "Posted" Pill',
     setFollowKey: 'Set Follow Shortcut Key',
-    promptKey: (curr) => `Enter Follow shortcut key (current: ${curr}, default: F):`
+    promptKey: (curr) => `Enter Follow shortcut key (current: ${curr}, default: F):`,
+    setPillDesign: 'Select Floating Pill Design (1/2/3)',
+    promptPillDesign: (curr) => `Enter floating pill design (1: icon+label, 2: text-only, 3: mini icon / current: ${curr}):`,
+    setLanguage: 'Set UI Language (ko/en/zh/ja/auto)',
+    promptLanguage: (curr) => `Enter UI language (ko, en, zh, ja, auto / current: ${curr}):`
   };
 }
 
 function registerUserscriptMenuCommands() {
-  if (typeof GM_registerMenuCommand !== 'function') return;
+  const registerMenu =
+    typeof GM_registerMenuCommand === 'function'
+      ? GM_registerMenuCommand
+      : typeof GM !== 'undefined' && typeof GM.registerMenuCommand === 'function'
+        ? GM.registerMenuCommand.bind(GM)
+        : null;
+  if (!registerMenu) return;
   try {
     const strings = getUserscriptMenuStrings();
-    GM_registerMenuCommand(strings.toggleHints, () => {
+    registerMenu(strings.toggleHints, () => {
       const next = !showUiHints;
+      setShowUiHints(next);
       try {
         localStorage.setItem(LOCAL_STORAGE_HINTS_KEY, String(next));
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+          chrome.storage.sync.set({ showUiHints: next });
+        }
       } catch (_) {}
-      setShowUiHints(next);
     });
-    GM_registerMenuCommand(strings.toggleNonFollowers, () => {
+    registerMenu(strings.toggleNonFollowers, () => {
       setFilterNonFollowers(!filterNonFollowers, true);
     });
-    GM_registerMenuCommand(strings.toggleCompactPill, () => {
+    registerMenu(strings.toggleCompactPill, () => {
       setCompactNewPostsPill(!compactNewPostsPill, true);
     });
-    GM_registerMenuCommand(strings.setFollowKey, () => {
+    registerMenu(strings.setPillDesign, () => {
+      const current = compactPillDesign || '3';
+      const nextCycle = current === '1' ? '2' : current === '2' ? '3' : '1';
+      let chosen = nextCycle;
+      if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
+        const input = window.prompt(strings.promptPillDesign(current), nextCycle);
+        if (input === null) return;
+        const trimmed = input.trim();
+        if (['1', '2', '3'].includes(trimmed)) chosen = trimmed;
+      }
+      setCompactPillDesign(chosen, true);
+    });
+    registerMenu(strings.setLanguage, () => {
+      const current = getUiLang();
+      const langs = ['ko', 'en', 'zh', 'ja', 'auto'];
+      const nextIdx = (langs.indexOf(current) + 1) % langs.length;
+      const nextLang = langs[nextIdx];
+      let chosen = nextLang;
+      if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
+        const input = window.prompt(strings.promptLanguage(current), nextLang);
+        if (input === null) return;
+        chosen = normalizeUiLang(input);
+      }
+      setUiLang(chosen, true);
+    });
+    registerMenu(strings.setFollowKey, () => {
       const currentLabel = formatShortcutLabel(shortcut);
       const input = typeof window !== 'undefined' && typeof window.prompt === 'function'
         ? window.prompt(strings.promptKey(currentLabel), shortcut.key || 'f')
@@ -589,12 +571,15 @@ function registerUserscriptMenuCommands() {
       if (!input) return;
       const k = input.trim().slice(0, 1).toLowerCase();
       if (!k) return;
-      const code = resolveKeyCode({ key: k, code: '' }) || DEFAULT_SHORTCUT.code;
+      const code = resolveKeyCode({ key: k, code: '' }) || '';
       shortcut = { ...DEFAULT_SHORTCUT, key: k, code };
       try {
         localStorage.setItem(LOCAL_STORAGE_SHORTCUT_KEY, JSON.stringify(shortcut));
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
+          chrome.storage.sync.set({ shortcut });
+        }
       } catch (_) {}
-      scheduleUiSync();
+      syncUiHints();
     });
   } catch (_) {}
 }
@@ -608,6 +593,11 @@ function applyConfigUpdate(data = {}) {
     showUiHints = data.showUiHints;
   }
   if (typeof data.filterNonFollowers === 'boolean') {
+    if (filterNonFollowers !== data.filterNonFollowers) {
+      lastFocusedRowTop = null;
+      lastFocusedFilteredCell = null;
+      clearFilterChunkTimer();
+    }
     filterNonFollowers = data.filterNonFollowers;
   }
   if (typeof data.compactNewPostsPill === 'boolean') {
@@ -617,7 +607,8 @@ function applyConfigUpdate(data = {}) {
     compactPillDesign = normalizeCompactPillDesign(data.compactPillDesign);
   }
   if (typeof data.uiLang === 'string') {
-    uiLang = data.uiLang;
+    const norm = normalizeUiLang(data.uiLang);
+    uiLang = norm === 'auto' ? null : norm;
   }
   syncUiHints();
   scheduleUiSync();
@@ -653,18 +644,14 @@ if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
       applyConfigUpdate(patch);
     }
   });
-  if (chrome.runtime && chrome.runtime.onMessage && typeof chrome.runtime.onMessage.addListener === 'function') {
-    chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-      if (msg && msg.type === 'xfs-config-update') {
-        applyConfigUpdate(msg);
-        try {
-          sendResponse?.({ ok: true });
-        } catch (_) {}
-      }
-    });
-  }
 } else {
   loadFromLocalStorage();
+}
+
+if (
+  typeof GM_registerMenuCommand === 'function' ||
+  (typeof GM !== 'undefined' && typeof GM?.registerMenuCommand === 'function')
+) {
   registerUserscriptMenuCommands();
 }
 
@@ -736,12 +723,14 @@ function isDirectEditableElement(el) {
   return false;
 }
 
-function isEditableNode(el) {
+function isEditableNode(el, visited = typeof Set !== 'undefined' ? new Set() : null) {
   if (!el || el.nodeType !== 1) return false;
   let cur = el;
-  const visited = typeof Set !== 'undefined' ? new Set() : null;
-  while (cur && cur.nodeType === 1 && (!visited || !visited.has(cur))) {
-    visited?.add(cur);
+  while (cur && cur.nodeType === 1) {
+    if (visited) {
+      if (visited.has(cur)) return false;
+      visited.add(cur);
+    }
     if (isDirectEditableElement(cur)) return true;
     if (cur.parentElement) {
       cur = cur.parentElement;
@@ -752,17 +741,19 @@ function isEditableNode(el) {
       cur = rootNode.host;
       continue;
     }
+    if (cur.closest?.(EDITABLE_SELECTOR)) return true;
     break;
   }
-  return Boolean(el.closest?.(EDITABLE_SELECTOR));
+  return false;
 }
 
 function isEditable(el) {
   let cur = el;
   const visited = typeof Set !== 'undefined' ? new Set() : null;
+  const nodeVisited = typeof Set !== 'undefined' ? new Set() : null;
   while (cur && cur.nodeType === 1 && (!visited || !visited.has(cur))) {
     visited?.add(cur);
-    if (isEditableNode(cur)) return true;
+    if (isEditableNode(cur, nodeVisited)) return true;
     const sr = getShadowRoot(cur);
     if (sr?.activeElement && sr.activeElement !== cur) {
       cur = sr.activeElement;
@@ -808,10 +799,11 @@ function getEventTarget(e, root = typeof document !== 'undefined' ? document : n
 }
 
 function isEditableEvent(e, root = typeof document !== 'undefined' ? document : null) {
+  const visited = typeof Set !== 'undefined' ? new Set() : null;
   if (e) {
     if (typeof e.composedPath === 'function') {
       for (const node of e.composedPath()) {
-        if (node && node.nodeType === 1 && (isEditableNode(node) || isEmbeddedFrameElement(node))) {
+        if (node && node.nodeType === 1 && (isEditableNode(node, visited) || isEmbeddedFrameElement(node))) {
           return true;
         }
       }
@@ -820,7 +812,7 @@ function isEditableEvent(e, root = typeof document !== 'undefined' ? document : 
   }
   if (isEmbeddedFrameElement(root?.activeElement)) return true;
   const deepActive = getDeepActiveElement(root);
-  return Boolean(deepActive && (isEditableNode(deepActive) || isEmbeddedFrameElement(deepActive)));
+  return Boolean(deepActive && (isEditableNode(deepActive, visited) || isEmbeddedFrameElement(deepActive)));
 }
 
 function matchesElementTestId(el, testIds) {
@@ -840,18 +832,32 @@ const XCHAT_OVERLAY_TESTIDS = new Set([
   'chat-drawer-root'
 ]);
 
-function nodeTouchesTestIdsOrSelector(node, testIds, selector) {
+function nodeTouchesTestIdsOrSelector(
+  node,
+  testIds,
+  selector,
+  visited = typeof Set !== 'undefined' ? new Set() : null
+) {
   let cur = node;
-  const visited = typeof Set !== 'undefined' ? new Set() : null;
-  while (cur && (!visited || !visited.has(cur))) {
-    visited?.add(cur);
+  while (cur) {
+    if (visited) {
+      if (visited.has(cur)) return false;
+      visited.add(cur);
+    }
     if (cur.nodeType === 1) {
       if (testIds && matchesElementTestId(cur, testIds)) return true;
-      if (selector && (cur.matches?.(selector) || cur.closest?.(selector))) return true;
+      if (selector && !testIds && cur.matches?.(selector)) return true;
       if (cur.parentElement) {
         cur = cur.parentElement;
         continue;
       }
+      const rootNode = cur.getRootNode?.();
+      if (rootNode?.host) {
+        cur = rootNode.host;
+        continue;
+      }
+      if (selector && (cur.matches?.(selector) || cur.closest?.(selector))) return true;
+      break;
     }
     const rootNode = cur.getRootNode?.();
     if (rootNode?.host) {
@@ -864,17 +870,18 @@ function nodeTouchesTestIdsOrSelector(node, testIds, selector) {
 }
 
 function eventTouchesContext(e, root, testIds, selector) {
+  const visited = typeof Set !== 'undefined' ? new Set() : null;
   if (e) {
     if (typeof e.composedPath === 'function') {
       for (const node of e.composedPath()) {
-        if (nodeTouchesTestIdsOrSelector(node, testIds, selector)) return true;
+        if (nodeTouchesTestIdsOrSelector(node, testIds, selector, visited)) return true;
       }
     }
-    if (nodeTouchesTestIdsOrSelector(e.target, testIds, selector)) return true;
+    if (nodeTouchesTestIdsOrSelector(e.target, testIds, selector, visited)) return true;
   }
-  if (nodeTouchesTestIdsOrSelector(root?.activeElement, testIds, selector)) return true;
+  if (nodeTouchesTestIdsOrSelector(root?.activeElement, testIds, selector, visited)) return true;
   const deepActive = getDeepActiveElement(root);
-  if (deepActive && deepActive !== root?.activeElement && nodeTouchesTestIdsOrSelector(deepActive, testIds, selector)) {
+  if (deepActive && deepActive !== root?.activeElement && nodeTouchesTestIdsOrSelector(deepActive, testIds, selector, visited)) {
     return true;
   }
   return false;
@@ -1139,10 +1146,13 @@ function findDropdownActionButton(code, root = document) {
     if (quoteLink) return quoteLink;
     const items = dropdown.querySelectorAll?.('[role="menuitem"], [role="button"]') || [];
     for (const item of items) {
-      if (/(^|\s)(quote|인용|引用)(\s|$)|quote post|인용하기|게시물 인용/i.test(item.textContent || '')) {
+      if (/(^|\s)(quote|인용)(\s|$)|引用|quote post|인용하기|게시물 인용/i.test(item.textContent || '')) {
         return item;
       }
     }
+  }
+  if (code === 'KeyU') {
+    return dropdown.querySelector?.('[data-testid="mute"]') || null;
   }
   if (code === 'KeyX') {
     return dropdown.querySelector?.('[data-testid="block"]') || null;
@@ -1163,6 +1173,11 @@ const RESERVED_TOP_PATHS = new Set([
   'messages',
   'i',
   'search',
+  'hashtag',
+  'grok',
+  'communities',
+  'spaces',
+  'account',
   'settings',
   'compose',
   'intent',
@@ -1243,7 +1258,7 @@ function findFollowListTabLink(
 
 const HOME_TAB_INDEX_BY_CODE = {
   Digit1: 0, Digit2: 1, Digit3: 2, Digit4: 3, Digit5: 4,
-  Digit6: 5, Digit7: 6, Digit8: 7, Digit9: 8, Digit0: 9
+  Digit6: 5, Digit7: 6, Digit8: 7, Digit9: 8
 };
 
 function findHomeTabLink(
@@ -1259,7 +1274,7 @@ function findHomeTabLink(
 }
 
 const FOLLOW_BTN_SELECTOR =
-  '[data-testid$="-follow"], [data-testid$="-unfollow"], button[aria-label*="팔로우"], [role="button"][aria-label*="팔로우"]';
+  '[data-testid$="-follow"], [data-testid$="-unfollow"], [data-testid$="-cancel"], button[aria-label*="팔로우"], [role="button"][aria-label*="팔로우"]';
 
 function findTargetUserCell(
   primary,
@@ -1534,51 +1549,67 @@ function stepFollowingCell(
   return true;
 }
 
-function findStatusFollowButton(root, primary, statusUsername) {
-  const handleLower = '@' + statusUsername.toLowerCase();
-  const pathLower = '/' + statusUsername.toLowerCase();
+function getLoggedInUsername(root = typeof document !== 'undefined' ? document : null) {
+  const profileLink = root?.querySelector?.('header nav a[data-testid="AppTabBar_Profile_Link"]');
+  const profileHref = profileLink?.getAttribute?.('href') || '';
+  const profileMatch = profileHref.match(/^\/([^/?#]+)/);
+  if (profileMatch && !RESERVED_TOP_PATHS.has(profileMatch[1].toLowerCase())) {
+    return profileMatch[1];
+  }
+  return null;
+}
 
-  // a) Hovered or focused UserCell (e.g. in sidebarColumn "관련 인물" / Relevant people)
-  const hoveredCell = root.querySelector?.('[data-testid="UserCell"]:hover');
+function findStatusFollowButton(root, primary, statusUsername) {
+  const loggedIn = getLoggedInUsername(root);
+  if (loggedIn && statusUsername && loggedIn.toLowerCase() === statusUsername.toLowerCase()) {
+    return null;
+  }
+
+  const handleLower = statusUsername ? '@' + statusUsername.toLowerCase() : '';
+  const pathLower = statusUsername ? '/' + statusUsername.toLowerCase() : '';
+
+  // a) Hovered or focused UserCell (e.g. in "관련 인물" / Relevant people)
+  const hoveredCell = root?.querySelector?.('[data-testid="UserCell"]:hover');
   if (hoveredCell) {
     const btn = hoveredCell.querySelector?.(FOLLOW_BTN_SELECTOR);
     if (btn) return btn;
   }
-  const activeCell = root.activeElement?.closest?.('[data-testid="UserCell"]');
+  const activeCell = root?.activeElement?.closest?.('[data-testid="UserCell"]');
   if (activeCell) {
     const btn = activeCell.querySelector?.(FOLLOW_BTN_SELECTOR);
     if (btn) return btn;
   }
 
   // b) Focused tweet article in primaryColumn if it has its own Follow/Unfollow button
-  const activeArticle = root.activeElement?.closest?.('article[data-testid="tweet"]');
+  const activeArticle = root?.activeElement?.closest?.('article[data-testid="tweet"]');
   if (activeArticle && primary?.contains?.(activeArticle)) {
     const btn = activeArticle.querySelector?.(FOLLOW_BTN_SELECTOR);
     if (btn) return btn;
   }
 
-  // c) Search primaryColumn and sidebarColumn for Follow/Unfollow button matching @statusUsername
-  const allBtns = Array.from(root.querySelectorAll?.(FOLLOW_BTN_SELECTOR) || []);
-  for (const btn of allBtns) {
+  // c) Search for Follow/Unfollow button matching @statusUsername (exclude sidebarColumn)
+  const btnScope = primary && typeof primary.querySelectorAll === 'function' ? primary : root;
+  const allBtns = Array.from(btnScope?.querySelectorAll?.(FOLLOW_BTN_SELECTOR) || []);
+  const candidateBtns = allBtns.filter(
+    (btn) => !btn.closest?.('[data-testid="sidebarColumn"]')
+  );
+  for (const btn of candidateBtns) {
     const aria = (btn.getAttribute?.('aria-label') || '').toLowerCase();
-    if (aria.includes(handleLower)) {
+    if (handleLower && aria.includes(handleLower)) {
       return btn;
     }
     const container = btn.closest?.('[data-testid="UserCell"], article[data-testid="tweet"]');
     if (container?.querySelectorAll) {
       for (const a of container.querySelectorAll('a[href]')) {
-        if ((a.getAttribute('href') || '').toLowerCase() === pathLower) {
+        if (pathLower && (a.getAttribute('href') || '').toLowerCase() === pathLower) {
           return btn;
         }
       }
     }
   }
 
-  // d) Fallback to first Follow/Unfollow button inside primaryColumn or sidebarColumn
-  const primaryBtn = primary?.querySelector?.(FOLLOW_BTN_SELECTOR);
-  if (primaryBtn) return primaryBtn;
-  const sidebar = root.querySelector?.('[data-testid="sidebarColumn"]');
-  return sidebar?.querySelector?.(FOLLOW_BTN_SELECTOR) || allBtns[0] || null;
+  // d) Fallback strictly inside primaryColumn (no sidebar, no allBtns[0])
+  return primary?.querySelector?.(FOLLOW_BTN_SELECTOR) || null;
 }
 
 function findProfileFollowButton(
@@ -1622,7 +1653,7 @@ function findProfileFollowButton(
 
   const candidates = primary.querySelectorAll(FOLLOW_BTN_SELECTOR);
   for (const btn of candidates) {
-    if (!btn.closest('[data-testid="UserCell"], article, [data-testid="HoverCard"]')) {
+    if (!btn.closest?.('[data-testid="UserCell"], article, [data-testid="HoverCard"]')) {
       return btn;
     }
   }
@@ -1804,7 +1835,7 @@ const BASE_UI_HINTS_CSS = `
     }
     [data-testid="tweetButton"] > div::after,
     [data-testid="tweetButtonInline"] > div::after {
-      content: "⌘↵";
+      content: var(--xfs-send-badge, "⌘↵");
       font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 12px;
       font-weight: 700;
@@ -1836,38 +1867,23 @@ const BASE_UI_HINTS_CSS = `
       user-select: none;
     }
     [data-testid="Dropdown"] [data-testid="retweetConfirm"] > div::after,
-    [data-testid="Dropdown"] [data-testid="unretweetConfirm"] > div::after {
-      content: "t";
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 12px;
-      font-weight: 700;
-      color: currentColor;
-      margin-left: 6px;
-    }
-    [data-testid="Dropdown"] a[href="/compose/post"] > div::after {
-      content: "e";
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 12px;
-      font-weight: 700;
-      color: var(--xfs-nav-color, currentColor);
-      margin-left: 6px;
-    }
-    [data-testid="Dropdown"] [data-testid="mute"] > div::after {
-      content: "u";
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 12px;
-      font-weight: 700;
-      color: currentColor;
-      margin-left: 6px;
-    }
+    [data-testid="Dropdown"] [data-testid="unretweetConfirm"] > div::after,
+    [data-testid="Dropdown"] a[href="/compose/post"] > div::after,
+    [data-testid="Dropdown"] [data-testid="mute"] > div::after,
     [data-testid="Dropdown"] [data-testid="block"] > div::after {
-      content: "x";
       font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 12px;
       font-weight: 700;
       color: currentColor;
       margin-left: 6px;
+      pointer-events: none;
+      user-select: none;
     }
+    [data-testid="Dropdown"] [data-testid="retweetConfirm"] > div::after,
+    [data-testid="Dropdown"] [data-testid="unretweetConfirm"] > div::after { content: "t"; }
+    [data-testid="Dropdown"] a[href="/compose/post"] > div::after { content: "e"; }
+    [data-testid="Dropdown"] [data-testid="mute"] > div::after { content: "u"; }
+    [data-testid="Dropdown"] [data-testid="block"] > div::after { content: "x"; }
     a[role="tab"][href$="/verified_followers"] div[dir="ltr"] > span:first-of-type::after,
     a[role="tab"][href$="/followers"] div[dir="ltr"] > span:first-of-type::after,
     a[role="tab"][href$="/following"] div[dir="ltr"] > span:first-of-type::after {
@@ -2136,6 +2152,12 @@ function syncFollowingFilter(
   }
   const filterMode = getFollowFilterMode(pathname);
   const active = Boolean(filterMode && filterNonFollowers);
+  const isModeTransition = lastFilterActive !== active;
+  if (isModeTransition) {
+    lastFocusedRowTop = null;
+    lastFocusedFilteredCell = null;
+    lastFilterActive = active;
+  }
   const primary = root.querySelector?.('[data-testid="primaryColumn"]');
 
   if (!filterMode) {
@@ -2214,7 +2236,7 @@ function syncFollowingFilter(
       lastFocusedCellLink.closest?.('[data-testid="UserCell"]') ||
       lastFocusedCellLink.closest?.('[data-testid="cellInnerDiv"]')?.querySelector?.('[data-testid="UserCell"]');
     if (focusedCell && shouldFilterOutUserCell(focusedCell, filterMode, root, normProfile)) {
-      if (lastFocusedRowTop === null) {
+      if (!isModeTransition && lastFocusedRowTop === null) {
         const prevTop = getRowVisualTop(focusedCell);
         if (prevTop !== null) lastFocusedRowTop = prevTop;
       }
@@ -2222,7 +2244,7 @@ function syncFollowingFilter(
     }
   }
   if (active && lastFocusedFilteredCell && shouldFilterOutUserCell(lastFocusedFilteredCell, filterMode, root, normProfile)) {
-    if (lastFocusedRowTop === null) {
+    if (!isModeTransition && lastFocusedRowTop === null) {
       const prevTop = getRowVisualTop(lastFocusedFilteredCell);
       if (prevTop !== null) lastFocusedRowTop = prevTop;
     }
@@ -2481,17 +2503,21 @@ const COMPACT_PILL_STYLES_CSS = `
     [data-xfs-pill-btn="1"]:hover svg,
     [data-xfs-pill-btn="1"]:hover [data-testid="pillLabel"]::after,
     html[data-xfs-compact-pill="1"] button:has([data-testid="pillLabel"]):hover svg,
-    html[data-xfs-compact-pill="1"] button:has([data-testid="pillLabel"]):hover [data-testid="pillLabel"]::after {
+    html[data-xfs-compact-pill="1"] [role="button"]:has([data-testid="pillLabel"]):hover svg,
+    html[data-xfs-compact-pill="1"] button:has([data-testid="pillLabel"]):hover [data-testid="pillLabel"]::after,
+    html[data-xfs-compact-pill="1"] [role="button"]:has([data-testid="pillLabel"]):hover [data-testid="pillLabel"]::after {
       color: #ffffff !important;
     }
     [data-xfs-pill-btn="1"] [data-testid="pillLabel"],
-    html[data-xfs-compact-pill="1"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"] {
+    html[data-xfs-compact-pill="1"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"],
+    html[data-xfs-compact-pill="1"] [role="button"]:has([data-testid="pillLabel"]) [data-testid="pillLabel"] {
       font-size: 11.5px !important;
       line-height: 15px !important;
       color: #e7e9ea !important;
     }
     [data-xfs-pill-btn="1"] [data-testid="pillLabel"]::after,
-    html[data-xfs-compact-pill="1"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"]::after {
+    html[data-xfs-compact-pill="1"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"]::after,
+    html[data-xfs-compact-pill="1"] [role="button"]:has([data-testid="pillLabel"]) [data-testid="pillLabel"]::after {
       font-size: 11.5px !important;
       margin-left: 4px !important;
       color: #1d9bf0 !important;
@@ -2537,14 +2563,16 @@ const COMPACT_PILL_STYLES_CSS = `
       margin-right: 3px !important;
     }
     [data-xfs-pill-btn="2"] [data-testid="pillLabel"],
-    html[data-xfs-compact-pill="2"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"] {
+    html[data-xfs-compact-pill="2"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"],
+    html[data-xfs-compact-pill="2"] [role="button"]:has([data-testid="pillLabel"]) [data-testid="pillLabel"] {
       font-size: 11px !important;
       line-height: 14px !important;
       color: #1d9bf0 !important;
       font-weight: 600 !important;
     }
     [data-xfs-pill-btn="2"] [data-testid="pillLabel"]::after,
-    html[data-xfs-compact-pill="2"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"]::after {
+    html[data-xfs-compact-pill="2"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"]::after,
+    html[data-xfs-compact-pill="2"] [role="button"]:has([data-testid="pillLabel"]) [data-testid="pillLabel"]::after {
       font-size: 11px !important;
       margin-left: 3px !important;
       color: #1d9bf0 !important;
@@ -2590,7 +2618,8 @@ const COMPACT_PILL_STYLES_CSS = `
       margin-right: 3px !important;
     }
     [data-xfs-pill-btn="3"] [data-testid="pillLabel"],
-    html[data-xfs-compact-pill="3"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"] {
+    html[data-xfs-compact-pill="3"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"],
+    html[data-xfs-compact-pill="3"] [role="button"]:has([data-testid="pillLabel"]) [data-testid="pillLabel"] {
       font-size: 11.5px !important;
       line-height: 15px !important;
       color: #1d9bf0 !important;
@@ -2601,7 +2630,8 @@ const COMPACT_PILL_STYLES_CSS = `
       display: none !important;
     }
     [data-xfs-pill-btn="3"] [data-testid="pillLabel"]::after,
-    html[data-xfs-compact-pill="3"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"]::after {
+    html[data-xfs-compact-pill="3"] button:has([data-testid="pillLabel"]) [data-testid="pillLabel"]::after,
+    html[data-xfs-compact-pill="3"] [role="button"]:has([data-testid="pillLabel"]) [data-testid="pillLabel"]::after {
       content: ".";
       font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 11.5px !important;
@@ -2703,8 +2733,9 @@ function syncCompactPill(
 let homeTabHintEls = [];
 
 function syncHomeTabHints() {
-  const onHome = showUiHints && /^\/home\/?$/.test(location.pathname);
-  if (!onHome) {
+  if (typeof document === 'undefined' || typeof location === 'undefined') return;
+  const onHome = showUiHints && /^\/home\/?$/.test(location.pathname || '');
+  if (!onHome || typeof document.createTreeWalker !== 'function') {
     if (homeTabHintEls.length > 0) {
       for (const el of homeTabHintEls) {
         removeAttrIfPresent(el, 'data-xfs-home-idx');
@@ -2734,7 +2765,6 @@ function syncHomeTabHints() {
 }
 
 const docTargetBtnMap = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
-const legacyCleanedDocs = typeof WeakSet !== 'undefined' ? new WeakSet() : null;
 let lastThemeSampleDoc = null;
 let lastThemeSampleAt = 0;
 let cachedNavColor = '';
@@ -2752,6 +2782,7 @@ function syncUiHints(options = null) {
       : null;
   const filterMode = getFollowFilterMode(pathname);
   const filterActive = Boolean(filterMode && filterNonFollowers);
+  const isModeTransition = lastFilterActive !== filterActive;
   const normProfile =
     filterMode === 'followers' ? resolveNormalizedProfileHref(document) : '';
 
@@ -2761,7 +2792,7 @@ function syncUiHints(options = null) {
         lastFocusedCellLink.closest?.('[data-testid="UserCell"]') ||
         lastFocusedCellLink.closest?.('[data-testid="cellInnerDiv"]')?.querySelector?.('[data-testid="UserCell"]');
       if (focusedCell && shouldFilterOutUserCell(focusedCell, filterMode, document, normProfile)) {
-        if (lastFocusedRowTop === null) {
+        if (!isModeTransition && lastFocusedRowTop === null) {
           const prevTop = getRowVisualTop(focusedCell);
           if (prevTop !== null) lastFocusedRowTop = prevTop;
         }
@@ -2772,7 +2803,7 @@ function syncUiHints(options = null) {
       lastFocusedFilteredCell &&
       shouldFilterOutUserCell(lastFocusedFilteredCell, filterMode, document, normProfile)
     ) {
-      if (lastFocusedRowTop === null) {
+      if (!isModeTransition && lastFocusedRowTop === null) {
         const prevTop = getRowVisualTop(lastFocusedFilteredCell);
         if (prevTop !== null) lastFocusedRowTop = prevTop;
       }
@@ -2820,17 +2851,6 @@ function syncUiHints(options = null) {
   // Phase 2: Write DOM attributes & CSS variables (guarded so steady-state performs 0 mutations)
   isApplyingDomSync = true;
   try {
-    if (!legacyCleanedDocs?.has(document)) {
-      legacyCleanedDocs?.add(document);
-      const hudEl = document.getElementById?.('xfs-hud');
-      if (hudEl && (!hudEl.id || hudEl.id === 'xfs-hud')) {
-        hudEl.remove?.();
-      }
-      for (const badge of document.querySelectorAll?.('.xfs-key-badge') || []) {
-        badge.remove?.();
-      }
-    }
-
     const filterOpts = {
       background: Boolean(options?.background),
       normProfile
@@ -2863,6 +2883,11 @@ function syncUiHints(options = null) {
     ensureStyles();
     const keyText = formatShortcutLabel(shortcut).toLowerCase();
     setRootCssVarIfChanged(document.documentElement, '--xfs-follow-key', JSON.stringify(keyText));
+    setRootCssVarIfChanged(
+      document.documentElement,
+      '--xfs-send-badge',
+      JSON.stringify(isApplePlatform() ? '⌘↵' : 'Ctrl↵')
+    );
 
     if (docTargetBtnMap?.has(document)) {
       const prevBtn = docTargetBtnMap.get(document);
@@ -2989,15 +3014,54 @@ function restoreCellFocusIfNeeded() {
   }
 }
 
+let lastWindowFocusAt = 0;
+
+function isImeKey(e) {
+  if (!e) return false;
+  if (e.isComposing || e.key === 'Process' || e.keyCode === 229 || e.which === 229) {
+    return true;
+  }
+  const key = typeof e.key === 'string' ? e.key : '';
+  return /[\u1100-\u11ff\u3131-\u318e\uac00-\ud7a3]/.test(key);
+}
+
+function isPotentialImeKey(e) {
+  if (!e) return false;
+  if (isImeKey(e)) return true;
+  const key = typeof e.key === 'string' ? e.key : '';
+  return key.length === 1 && key.charCodeAt(0) > 127;
+}
+
+function isPureAsciiOrphanKeyup(e) {
+  if (!e) return false;
+  if (isPotentialImeKey(e)) return false;
+  const key = typeof e.key === 'string' ? e.key : '';
+  const code = typeof e.code === 'string' ? e.code : '';
+  if (key === 'Enter' || code === 'Enter') return true;
+  if (key === ' ' || key === 'Spacebar' || code === 'Space') return true;
+  if (key.length === 1 && key.charCodeAt(0) >= 32 && key.charCodeAt(0) <= 126) {
+    return true;
+  }
+  if (code.startsWith('Digit') || code.startsWith('Key')) {
+    return true;
+  }
+  return false;
+}
+
 let lastModalDismissAt = 0;
 let pendingComposingEnterSend = null;
 
-function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = false) {
+function handleXNativeShortcutIfMatched(
+  e,
+  root = document,
+  forceDispatch = false,
+  editable = isEditableEvent(e, root)
+) {
   const code = resolveKeyCode(e);
   if (!code) return false;
 
   // 1. Inside editable fields: only support Cmd+Enter / Ctrl+Enter (Send post) when IME is composing
-  if (isEditableEvent(e, root)) {
+  if (editable) {
     clearPendingPrefix();
     if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && code === 'Enter') {
       const spec = codeToNativeSpec('Enter', false);
@@ -3104,7 +3168,7 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
   // 5. "g + ..." sequence second key
   if (activePrefix === 'g') {
     clearPendingPrefix();
-    const tabLink = findFollowListTabLink(code, root) || findHomeTabLink(code, root);
+    const tabLink = findFollowListTabLink(code, root);
     if (tabLink) {
       e.preventDefault();
       e.stopPropagation();
@@ -3220,8 +3284,31 @@ function handleXNativeShortcutIfMatched(e, root = document, forceDispatch = fals
   return false;
 }
 
-function handleActionIfMatched(e, root = document, forceDispatch = false) {
-  if (!isEditableEvent(e, root)) {
+function isPrefixSequenceSecondKey(activePrefix, e, root) {
+  if (!activePrefix || !e || e.ctrlKey || e.altKey || e.shiftKey || e.metaKey) {
+    return false;
+  }
+  const code = resolveKeyCode(e);
+  if (!code) return false;
+  if (activePrefix === 'g') {
+    return (
+      G_PREFIX_SECOND_CODES.has(code) ||
+      Boolean(findFollowListTabLink(code, root))
+    );
+  }
+  if (activePrefix === 'a') {
+    return A_PREFIX_SECOND_CODES.has(code);
+  }
+  return false;
+}
+
+function handleActionIfMatched(
+  e,
+  root = document,
+  forceDispatch = false,
+  editable = isEditableEvent(e, root)
+) {
+  if (!editable) {
     // 1. If confirmation modal is open (unfollow / mute / block), allow Y / N in any language to confirm / cancel
     const modalBtn = findConfirmationDialogButton(e, root);
     if (modalBtn) {
@@ -3239,10 +3326,9 @@ function handleActionIfMatched(e, root = document, forceDispatch = false) {
     const inChat = isInsideXChatContext(e, root);
     const inModal = isInsideModalDialog(e, root);
 
-    // 2. Check the Follow / Unfollow / Follow back shortcut (unless 'g' prefix is active for 'g f' = Drafts!)
+    // 2. Check the Follow / Unfollow / Follow back shortcut (unless 'g'/'a' prefix sequence is active)
     const activePrefix = getActivePrefix();
-    const isGfDraftsSequence = activePrefix === 'g' && resolveKeyCode(e) === 'KeyF' && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey;
-    if (!isGfDraftsSequence && matchesShortcut(e, shortcut)) {
+    if (!isPrefixSequenceSecondKey(activePrefix, e, root) && matchesShortcut(e, shortcut)) {
       const hoverCardOpen = Boolean(root?.querySelector?.('[data-testid="HoverCard"]'));
       if (hoverCardOpen || (!inChat && !inModal)) {
         const btn = findProfileFollowButton(root);
@@ -3283,7 +3369,7 @@ function handleActionIfMatched(e, root = document, forceDispatch = false) {
   }
 
   // 3. Otherwise handle X.com "?" shortcuts across all input languages / IMEs
-  return handleXNativeShortcutIfMatched(e, root, forceDispatch);
+  return handleXNativeShortcutIfMatched(e, root, forceDispatch, editable);
 }
 
 const REPEATABLE_CODES = new Set(['KeyJ', 'KeyK', 'Space']);
@@ -3367,7 +3453,7 @@ window.addEventListener(
     if (e.repeat) {
       if (code && REPEATABLE_CODES.has(code)) {
         clearRepeatTimer();
-        if (handleActionIfMatched(e, document, false)) {
+        if (handleActionIfMatched(e, document, false, editable)) {
           handledKeysDown.add(code);
         }
         return;
@@ -3382,7 +3468,7 @@ window.addEventListener(
 
     clearRepeatTimer();
 
-    if (handleActionIfMatched(e, document, false)) {
+    if (handleActionIfMatched(e, document, false, editable)) {
       if (code) {
         handledKeysDown.add(code);
         if (!e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey && !getActivePrefix()) {
@@ -3468,7 +3554,18 @@ window.addEventListener(
       return;
     }
 
-    handleActionIfMatched(e, document, true);
+    // 1. Window focus guard: drop orphan keyups occurring within 180ms of window focus (e.g. tab/app switch Cmd+2, Alt+Tab)
+    if (Date.now() - lastWindowFocusAt < 180) {
+      return;
+    }
+
+    // 2. Pure ASCII / Enter / Space orphan keyup filter: ignore orphan keyups when no prefix sequence is active,
+    // while preserving Korean / CJK IME keyup recovery.
+    if (!getActivePrefix() && isPureAsciiOrphanKeyup(e)) {
+      return;
+    }
+
+    handleActionIfMatched(e, document, true, editable);
   },
   true
 );
@@ -3545,7 +3642,15 @@ function handleMutationRecords(records) {
 }
 
 function handleMouseOver(e) {
-  const t = e?.target;
+  if (!e || e.isTrusted === false) {
+    lastHoveredContext = null;
+    scheduleUiSync();
+    return true;
+  }
+  if (!showUiHints || !isStatusPage()) {
+    return false;
+  }
+  const t = e.target;
   if (
     !t ||
     (typeof window !== 'undefined' && t === window) ||
@@ -3554,16 +3659,18 @@ function handleMouseOver(e) {
   ) {
     lastHoveredContext = null;
     scheduleUiSync();
-    return;
+    return true;
   }
   const el = t.nodeType === 1 ? t : t.parentElement;
   const ctx =
     typeof el?.closest === 'function'
       ? el.closest('[data-testid="UserCell"], [data-testid="HoverCard"], [data-testid="Dropdown"]')
       : null;
-  if (ctx === lastHoveredContext) return;
-  lastHoveredContext = ctx;
-  scheduleBackgroundUiSync();
+  if (ctx !== lastHoveredContext) {
+    lastHoveredContext = ctx;
+    scheduleBackgroundUiSync();
+  }
+  return true;
 }
 
 if (typeof window !== 'undefined') {
@@ -3583,6 +3690,18 @@ if (typeof window !== 'undefined') {
 }
 
 if (typeof window !== 'undefined' && typeof document !== 'undefined') {
+  window.addEventListener(
+    'focus',
+    (e) => {
+      if (!e || !e.target || e.target === window || e.target === document) {
+        lastWindowFocusAt = Date.now();
+        seenKeysDown.clear();
+        handledKeysDown.clear();
+        ignoredModifierKeysDown.clear();
+      }
+    },
+    true
+  );
   window.addEventListener('blur', () => {
     clearRepeatTimer();
     handledKeysDown.clear();
@@ -3635,8 +3754,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
 if (typeof module !== 'undefined') {
   module.exports = {
     DEFAULT_SHORTCUT,
+    isApplePlatform,
     resolveKeyCode,
-    codeToNativeSpec,
     formatShortcutLabel,
     isEditable,
     isEditableEvent,
@@ -3653,6 +3772,8 @@ if (typeof module !== 'undefined') {
     shouldFilterOutUserCell,
     formatFollowingFilterLabel,
     isStatusPage,
+    getLoggedInUsername,
+    findStatusFollowButton,
     findConfirmationDialogButton,
     findFollowListTabLink,
     findHomeTabLink,
@@ -3669,6 +3790,17 @@ if (typeof module !== 'undefined') {
     getCompactPillDesign,
     setCompactPillDesign,
     formatCompactPillLabel,
+    normalizeUiLang,
+    getUiLang,
+    setUiLang,
+    LOCAL_STORAGE_UI_LANG_KEY,
+    LOCAL_STORAGE_COMPACT_PILL_DESIGN_KEY,
+    getUserscriptMenuStrings,
+    registerUserscriptMenuCommands,
+    isImeKey,
+    isPotentialImeKey,
+    isPureAsciiOrphanKeyup,
+    handleMouseOver,
     applyConfigUpdate,
     syncCompactPill,
     syncFollowingFilter,

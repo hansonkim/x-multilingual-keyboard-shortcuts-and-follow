@@ -1,11 +1,17 @@
-const DEFAULT_SHORTCUT = {
-  key: 'f',
-  code: 'KeyF',
-  ctrl: false,
-  alt: false,
-  shift: false,
-  meta: false
-};
+const {
+  DEFAULT_SHORTCUT,
+  MODIFIER_KEYS,
+  MODIFIER_CODES,
+  IME_SWITCH_CODES,
+  NON_PRINTABLE_IME_KEYS,
+  CODE_TO_KEY_LABEL,
+  isApplePlatform,
+  resolveKeyCode,
+  formatShortcutLabel
+} =
+  typeof globalThis !== 'undefined' && globalThis.XFSKeymap
+    ? globalThis.XFSKeymap
+    : (typeof require === 'function' ? require('./shared-keymap.js') : {});
 
 const I18N = {
   ko: {
@@ -36,7 +42,8 @@ const I18N = {
     extFilterDesc: '팔로잉(/following)은 맞팔 안 한 계정, 팔로워(/followers·/verified_followers)는 내가 팔로우 안 한 계정만 보기 토글',
     extModalDesc: '언팔로우·차단·뮤트 확인 모달에서 확인(Y) / 취소(N)',
     extTabDesc: '인증된 팔로워(V) / 팔로워(W) / 팔로잉(O) 이동',
-    extQuoteDesc: '재게시 메뉴 열기 / 인용(Quote) 바로 선택',
+    extHomeTabDesc: '홈(/home) 상단 탭 바로 전환',
+    extQuoteDesc: '재게시 메뉴 열기 / 인용(Quote) 선택',
     xSectionTitle: 'X (?) 전체 단축키 (한·일·중 다국어 자동 변환)',
     xHelpNewDesc: '단축키 도움말(?) / 새 게시물 불러오기(.)',
     xJkDesc: '다음 / 이전 게시물·계정 이동',
@@ -80,7 +87,8 @@ const I18N = {
     extFilterDesc: 'Toggle non-followers on /following & unfollowed followers on /followers, /verified_followers',
     extModalDesc: 'Confirm (Y) or Cancel (N) in Unfollow, Block, and Mute dialogs',
     extTabDesc: 'Go to Verified Followers (V) / Followers (W) / Following (O)',
-    extQuoteDesc: 'Open Repost menu / Select Quote directly',
+    extHomeTabDesc: 'Switch top tabs on /home',
+    extQuoteDesc: 'Open Repost menu / Select Quote when open',
     xSectionTitle: 'All X (?) Shortcuts (Multilingual IME Auto-Convert)',
     xHelpNewDesc: 'Shortcut help (?) / Load new posts (.)',
     xJkDesc: 'Next / Previous post or account',
@@ -124,7 +132,8 @@ const I18N = {
     extFilterDesc: '在 /following 仅看未回关你的人，在 /followers·/verified_followers 仅看你未回关的关注者',
     extModalDesc: '在取消关注·屏蔽·静音确认弹窗中确认(Y) / 取消(N)',
     extTabDesc: '跳转到认证关注者(V) / 关注者(W) / 正在关注(O)',
-    extQuoteDesc: '打开转发菜单 / 直接选择引用(Quote)',
+    extHomeTabDesc: '在 /home 直接切换顶部标签',
+    extQuoteDesc: '打开转发菜单 / 选择引用(Quote)',
     xSectionTitle: 'X (?) 全部快捷键（中·韩·日输入法自动转换）',
     xHelpNewDesc: '快捷键帮助(?) / 加载新帖子(.)',
     xJkDesc: '下一条 / 上一条帖子或账号',
@@ -168,7 +177,8 @@ const I18N = {
     extFilterDesc: '/following では片思いのみ、/followers・/verified_followers では未フォローバックのみ表示切替',
     extModalDesc: 'フォロー解除・ブロック・ミュート確認モーダルで確認(Y) / キャンセル(N)',
     extTabDesc: '認証済みフォロワー(V) / フォロワー(W) / フォロー中(O) へ移動',
-    extQuoteDesc: 'リポストメニューを開く / 引用(Quote)を直接選択',
+    extHomeTabDesc: '/home 上部タブの切り替え',
+    extQuoteDesc: 'リポストメニューを開く / 引用(Quote)を選択',
     xSectionTitle: 'X (?) 全標準ショートカット（日・韓・中 多言語自動変換）',
     xHelpNewDesc: 'ショートカット一覧(?) / 新しいポストを表示(.)',
     xJkDesc: '次 / 前のポスト・アカウントへ移動',
@@ -194,122 +204,12 @@ function detectBrowserLang(navLang = (typeof navigator !== 'undefined' && naviga
   return 'en';
 }
 
-const LAYOUT_CHAR_TO_CODE = {
-  // Korean 2-beolsik
-  'ㅂ': 'KeyQ', 'ㅃ': 'KeyQ', 'ㅈ': 'KeyW', 'ㅉ': 'KeyW',
-  'ㄷ': 'KeyE', 'ㄸ': 'KeyE', 'ㄱ': 'KeyR', 'ㄲ': 'KeyR',
-  'ㅅ': 'KeyT', 'ㅆ': 'KeyT', 'ㅛ': 'KeyY', 'ㅕ': 'KeyU',
-  'ㅑ': 'KeyI', 'ㅐ': 'KeyO', 'ㅒ': 'KeyO', 'ㅔ': 'KeyP', 'ㅖ': 'KeyP',
-  'ㅁ': 'KeyA', 'ㄴ': 'KeyS', 'ㅇ': 'KeyD', 'ㄹ': 'KeyF',
-  'ㅎ': 'KeyG', 'ㅗ': 'KeyH', 'ㅓ': 'KeyJ', 'ㅏ': 'KeyK',
-  'ㅣ': 'KeyL', 'ㅋ': 'KeyZ', 'ㅌ': 'KeyX', 'ㅊ': 'KeyC',
-  'ㅍ': 'KeyV', 'ㅠ': 'KeyB', 'ㅜ': 'KeyN', 'ㅡ': 'KeyM',
-  // Japanese JIS Kana
-  'た': 'KeyQ', 'て': 'KeyW', 'い': 'KeyE', 'ぃ': 'KeyE', 'す': 'KeyR',
-  'か': 'KeyT', 'ん': 'KeyY', 'な': 'KeyU', 'に': 'KeyI', 'ら': 'KeyO', 'せ': 'KeyP',
-  'ち': 'KeyA', 'と': 'KeyS', 'し': 'KeyD', 'は': 'KeyF', 'き': 'KeyG',
-  'く': 'KeyH', 'ま': 'KeyJ', 'の': 'KeyK', 'り': 'KeyL',
-  'つ': 'KeyZ', 'っ': 'KeyZ', 'さ': 'KeyX', 'そ': 'KeyC', 'ひ': 'KeyV',
-  'こ': 'KeyB', 'み': 'KeyN', 'も': 'KeyM',
-  'る': 'Period', 'め': 'Slash',
-  // Chinese Zhuyin / Bopomofo
-  'ㄆ': 'KeyQ', 'ㄊ': 'KeyW', 'ㄍ': 'KeyE', 'ㄐ': 'KeyR', 'ㄔ': 'KeyT',
-  'ㄗ': 'KeyY', 'ㄧ': 'KeyU', 'ㄛ': 'KeyI', 'ㄟ': 'KeyO', 'ㄣ': 'KeyP',
-  'ㄇ': 'KeyA', 'ㄋ': 'KeyS', 'ㄎ': 'KeyD', 'ㄑ': 'KeyF', 'ㄕ': 'KeyG',
-  'ㄘ': 'KeyH', 'ㄨ': 'KeyJ', 'ㄜ': 'KeyK', 'ㄠ': 'KeyL',
-  'ㄈ': 'KeyZ', 'ㄌ': 'KeyX', 'ㄏ': 'KeyC', 'ㄒ': 'KeyV', 'ㄖ': 'KeyB',
-  'ㄙ': 'KeyN', 'ㄩ': 'KeyM',
-  'ㄡ': 'Period', 'ㄥ': 'Slash',
-  // Russian (ЙЦУКЕН)
-  'й': 'KeyQ', 'ц': 'KeyW', 'у': 'KeyE', 'к': 'KeyR', 'е': 'KeyT',
-  'н': 'KeyY', 'г': 'KeyU', 'ш': 'KeyI', 'щ': 'KeyO', 'з': 'KeyP',
-  'ф': 'KeyA', 'ы': 'KeyS', 'в': 'KeyD', 'а': 'KeyF', 'п': 'KeyG',
-  'р': 'KeyH', 'о': 'KeyJ', 'л': 'KeyK', 'д': 'KeyL', 'я': 'KeyZ',
-  'ч': 'KeyX', 'с': 'KeyC', 'м': 'KeyV', 'и': 'KeyB', 'т': 'KeyN', 'ь': 'KeyM',
-  'ю': 'Period',
-  // Arabic (26 keys + punctuation)
-  'ض': 'KeyQ', 'ص': 'KeyW', 'ث': 'KeyE', 'ق': 'KeyR', 'ف': 'KeyT',
-  'غ': 'KeyY', 'ع': 'KeyU', 'ه': 'KeyI', 'خ': 'KeyO', 'ح': 'KeyP',
-  'ش': 'KeyA', 'س': 'KeyS', 'ي': 'KeyD', 'ب': 'KeyF', 'ل': 'KeyG',
-  'ا': 'KeyH', 'ت': 'KeyJ', 'ن': 'KeyK', 'م': 'KeyL', 'ئ': 'KeyZ',
-  'ء': 'KeyX', 'ؤ': 'KeyC', 'ر': 'KeyV', 'لا': 'KeyB', 'ى': 'KeyN', 'ة': 'KeyM',
-  'ز': 'Period', 'ظ': 'Slash', '؟': 'Slash',
-  // Hebrew / Greek / Thai / macOS Option
-  'כ': 'KeyF', 'ט': 'KeyY', 'מ': 'KeyN', 'ח': 'KeyJ', 'ל': 'KeyK',
-  'φ': 'KeyF', 'υ': 'KeyY', 'ν': 'KeyN', 'ξ': 'KeyJ', 'κ': 'KeyK',
-  'ด': 'KeyF', 'ั': 'KeyY', 'ื': 'KeyN', '่': 'KeyJ', 'า': 'KeyK',
-  'ƒ': 'KeyF',
-  '.': 'Period', '。': 'Period', '．': 'Period', '｡': 'Period',
-  '/': 'Slash', '?': 'Slash', '／': 'Slash', '？': 'Slash', '・': 'Slash', '･': 'Slash',
-  ' ': 'Space', '\u3000': 'Space'
-};
-
-const MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta']);
-const MODIFIER_CODES = new Set([
-  'ControlLeft', 'ControlRight',
-  'ShiftLeft', 'ShiftRight',
-  'AltLeft', 'AltRight',
-  'MetaLeft', 'MetaRight'
-]);
-const IME_SWITCH_KEYS = new Set([
-  'HangulMode', 'HanjaMode', 'KanaMode', 'KanjiMode',
-  'Alphanumeric', 'CapsLock', 'Lang1', 'Lang2',
-  'Convert', 'NonConvert', 'Eisuu'
-]);
-
-function normalizeFullWidthChar(ch) {
-  const cp = ch.codePointAt(0);
-  if (cp >= 0xff01 && cp <= 0xff5e) {
-    return String.fromCharCode(cp - 0xfee0);
-  }
-  return ch;
-}
-
-function resolveKeyCode(e) {
-  if (!e) return null;
-  const { code, key, keyCode, which } = e;
-  if (code && code !== 'Unidentified' && !MODIFIER_CODES.has(code) && !IME_SWITCH_KEYS.has(code)) {
-    return code;
-  }
-  if (typeof key === 'string' && key.length >= 1) {
-    if (LAYOUT_CHAR_TO_CODE[key]) return LAYOUT_CHAR_TO_CODE[key];
-    if (key.length === 1) {
-      const norm = normalizeFullWidthChar(key);
-      const lower = norm.toLowerCase();
-      if (lower >= 'a' && lower <= 'z') return 'Key' + lower.toUpperCase();
-      if (lower >= '0' && lower <= '9') return 'Digit' + lower;
-      if (LAYOUT_CHAR_TO_CODE[lower]) return LAYOUT_CHAR_TO_CODE[lower];
-      if (LAYOUT_CHAR_TO_CODE[norm]) return LAYOUT_CHAR_TO_CODE[norm];
-    }
-  }
-  const numCode = keyCode || which;
-  if (numCode && numCode !== 229) {
-    if (numCode >= 65 && numCode <= 90) return 'Key' + String.fromCharCode(numCode);
-    if (numCode >= 48 && numCode <= 57) return 'Digit' + String.fromCharCode(numCode);
-    if (numCode === 190) return 'Period';
-    if (numCode === 191) return 'Slash';
-    if (numCode === 32) return 'Space';
-  }
-  return null;
-}
-
 function formatShortcut(sc) {
-  const parts = [];
-  if (sc.ctrl) parts.push('Ctrl');
-  if (sc.alt) parts.push('Alt');
-  if (sc.shift) parts.push('Shift');
-  if (sc.meta) parts.push('Meta');
+  return formatShortcutLabel(sc, ' + ');
+}
 
-  const resolved = resolveKeyCode(sc) || sc.code;
-  let keyLabel = sc.key ? sc.key.toUpperCase() : '';
-  if (resolved?.startsWith('Key')) keyLabel = resolved.slice(3);
-  else if (resolved?.startsWith('Digit')) keyLabel = resolved.slice(5);
-  else if (resolved === 'Space' || sc.key === ' ') keyLabel = 'Space';
-  else if (resolved === 'Period') keyLabel = '.';
-  else if (resolved === 'Slash') keyLabel = sc.shift ? '?' : '/';
-
-  parts.push(keyLabel || 'F');
-  return parts.join(' + ');
+function adaptPlatformText(text, apple = isApplePlatform()) {
+  return apple ? text : String(text).replaceAll('⌘+Enter', 'Ctrl+Enter').replaceAll('⌘↵', 'Ctrl↵');
 }
 
 let currentLang = detectBrowserLang();
@@ -317,12 +217,13 @@ let lastStatusKey = 'statusDefault';
 
 function t(key) {
   const dict = I18N[currentLang] || I18N.en;
-  return dict[key] || I18N.en[key] || key;
+  return adaptPlatformText(dict[key] || I18N.en[key] || key);
 }
 
 if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
   const recorder = document.getElementById('recorder');
   const extFollowKey = document.getElementById('ext-follow-key');
+  const xSendKbd = document.getElementById('x-send-kbd');
   const statusEl = document.getElementById('status');
   const resetBtn = document.getElementById('reset');
   const showUiHintsInput = document.getElementById('show-ui-hints');
@@ -343,6 +244,9 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     document.documentElement.lang = currentLang;
     if (langSelect && langSelect.value !== currentLang) {
       langSelect.value = currentLang;
+    }
+    if (xSendKbd) {
+      xSendKbd.textContent = isApplePlatform() ? 'N / ⌘+Enter' : 'N / Ctrl+Enter';
     }
     if (recorder) {
       recorder.setAttribute('aria-label', t('recorderAria'));
@@ -365,29 +269,8 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     if (extFollowKey) extFollowKey.textContent = formatted;
   }
 
-  function notifyTabs(payload) {
-    if (typeof chrome === 'undefined' || !chrome.tabs || typeof chrome.tabs.query !== 'function') {
-      return;
-    }
-    try {
-      chrome.tabs.query({}, (tabs) => {
-        if (!Array.isArray(tabs)) return;
-        for (const tab of tabs) {
-          if (!tab || typeof tab.id !== 'number') continue;
-          try {
-            const p = chrome.tabs.sendMessage(tab.id, { type: 'xfs-config-update', ...payload });
-            if (p && typeof p.catch === 'function') {
-              p.catch(() => {});
-            }
-          } catch (_) {}
-        }
-      });
-    } catch (_) {}
-  }
-
   async function saveShortcut(sc) {
     try {
-      notifyTabs({ shortcut: sc });
       await chrome.storage.sync.set({ shortcut: sc });
       renderShortcutLabel(sc);
       setStatus('statusSaved');
@@ -448,7 +331,6 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     langSelect.addEventListener('change', async () => {
       const selected = langSelect.value;
       applyLanguage(selected);
-      notifyTabs({ uiLang: currentLang });
       try {
         await chrome.storage.sync.set({ uiLang: currentLang });
       } catch (err) {
@@ -461,7 +343,6 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     showUiHintsInput.addEventListener('change', async () => {
       try {
         const checked = Boolean(showUiHintsInput.checked);
-        notifyTabs({ showUiHints: checked });
         await chrome.storage.sync.set({ showUiHints: checked });
         setStatus(checked ? 'statusHintsOn' : 'statusHintsOff');
       } catch (err) {
@@ -475,7 +356,6 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     filterNonFollowersInput.addEventListener('change', async () => {
       try {
         const checked = Boolean(filterNonFollowersInput.checked);
-        notifyTabs({ filterNonFollowers: checked });
         await chrome.storage.sync.set({ filterNonFollowers: checked });
         setStatus(checked ? 'statusFilterOn' : 'statusFilterOff');
       } catch (err) {
@@ -491,7 +371,6 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
         const checked = Boolean(compactPillInput.checked);
         if (compactPillDesignSelect) compactPillDesignSelect.disabled = !checked;
         if (compactPillDesignRow) compactPillDesignRow.style.opacity = checked ? '1' : '0.5';
-        notifyTabs({ compactNewPostsPill: checked });
         await chrome.storage.sync.set({ compactNewPostsPill: checked });
         setStatus(checked ? 'statusCompactPillOn' : 'statusCompactPillOff');
       } catch (err) {
@@ -507,7 +386,6 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
         const val = ['1', '2', '3'].includes(compactPillDesignSelect.value)
           ? compactPillDesignSelect.value
           : '3';
-        notifyTabs({ compactPillDesign: val });
         await chrome.storage.sync.set({ compactPillDesign: val });
         setStatus('statusSaved');
       } catch (err) {
@@ -517,43 +395,68 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     });
   }
 
-  recorder.addEventListener('click', () => {
+  let ignoreNextActivationKeyup = false;
+
+  function startRecording() {
     recording = true;
     recorder.classList.add('recording');
     recorder.textContent = t('recorderPrompt');
     setStatus('statusWaiting');
     recorder.focus();
-  });
+  }
 
-  recorder.addEventListener('blur', async () => {
+  async function cancelRecording() {
     if (!recording) return;
     recording = false;
+    ignoreNextActivationKeyup = false;
     recorder.classList.remove('recording');
     const { shortcut = DEFAULT_SHORTCUT } = await chrome.storage.sync.get('shortcut');
     renderShortcutLabel({ ...DEFAULT_SHORTCUT, ...shortcut });
     setStatus('statusClickToSet');
+  }
+
+  recorder.addEventListener('click', () => {
+    ignoreNextActivationKeyup = false;
+    startRecording();
   });
+
+  recorder.addEventListener('blur', cancelRecording);
 
   async function handleRecordEvent(e) {
     if (!recording) return;
     e.preventDefault();
     e.stopPropagation();
 
-    if (MODIFIER_KEYS.has(e.key) || MODIFIER_CODES.has(e.code) || IME_SWITCH_KEYS.has(e.key) || IME_SWITCH_KEYS.has(e.code)) {
+    if (MODIFIER_KEYS.has(e.key) || MODIFIER_CODES.has(e.code) || IME_SWITCH_CODES.has(e.key) || IME_SWITCH_CODES.has(e.code)) {
+      return;
+    }
+
+    if ((e.key === 'Escape' || e.code === 'Escape') && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+      await cancelRecording();
       return;
     }
 
     const resolvedCode = resolveKeyCode(e);
-    if (!resolvedCode && (e.key === 'Process' || e.key === 'Dead' || e.key === 'Unidentified')) {
+    if (!resolvedCode && NON_PRINTABLE_IME_KEYS.has(e.key)) {
       return;
     }
 
     recording = false;
+    ignoreNextActivationKeyup = false;
     recorder.classList.remove('recording');
 
-    let canonicalKey = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    const rawKey = e.key && !NON_PRINTABLE_IME_KEYS.has(e.key) ? e.key : '';
+    let canonicalKey = rawKey.length === 1 ? rawKey.toLowerCase() : rawKey;
     if (resolvedCode?.startsWith('Key')) canonicalKey = resolvedCode.slice(3).toLowerCase();
     else if (resolvedCode?.startsWith('Digit')) canonicalKey = resolvedCode.slice(5);
+    else if (resolvedCode === 'Space') canonicalKey = ' ';
+    else if (resolvedCode === 'Slash') canonicalKey = e.shiftKey ? '?' : '/';
+    else if (resolvedCode && CODE_TO_KEY_LABEL[resolvedCode]) {
+      const lbl = CODE_TO_KEY_LABEL[resolvedCode];
+      canonicalKey = lbl.length === 1 ? lbl.toLowerCase() : lbl;
+    } else if (!canonicalKey && resolvedCode) {
+      canonicalKey = resolvedCode;
+    }
 
     const next = {
       key: canonicalKey,
@@ -566,11 +469,34 @@ if (typeof document !== 'undefined' && typeof document.addEventListener === 'fun
     await saveShortcut(next);
   }
 
-  recorder.addEventListener('keydown', handleRecordEvent);
-  recorder.addEventListener('keyup', handleRecordEvent);
+  recorder.addEventListener('keydown', (e) => {
+    if (!recording) {
+      if ((e.key === 'Enter' || e.key === ' ' || e.code === 'Space') && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        ignoreNextActivationKeyup = true;
+        startRecording();
+      }
+      return;
+    }
+    ignoreNextActivationKeyup = false;
+    handleRecordEvent(e);
+  });
+
+  recorder.addEventListener('keyup', (e) => {
+    if (!recording) return;
+    if (ignoreNextActivationKeyup && (e.key === 'Enter' || e.key === ' ' || e.code === 'Space')) {
+      ignoreNextActivationKeyup = false;
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    handleRecordEvent(e);
+  });
 
   resetBtn.addEventListener('click', async () => {
     recording = false;
+    ignoreNextActivationKeyup = false;
     recorder.classList.remove('recording');
     await saveShortcut({ ...DEFAULT_SHORTCUT });
   });
@@ -581,6 +507,8 @@ if (typeof module !== 'undefined') {
     I18N,
     detectBrowserLang,
     resolveKeyCode,
-    formatShortcut
+    formatShortcut,
+    adaptPlatformText,
+    isApplePlatform
   };
 }
