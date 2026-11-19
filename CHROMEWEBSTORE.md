@@ -1,6 +1,6 @@
 # Chrome Web Store Listing — X Multilingual Keyboard Shortcuts & Follow
 
-> Last Updated: 2026-11-14
+> Last Updated: 2026-11-19
 
 ## Store Listing
 
@@ -104,7 +104,8 @@ https://github.com/hansonkim/x-multilingual-keyboard-shortcuts-and-follow/issues
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.0.17 | 2026-11-14 | Add shared multilingual keymap module (adding Hebrew, Greek, and Thai layouts), 180ms window-focus guard and pure-ASCII orphan keyup filter while keeping IME recovery, safe status-page follow targeting (ignoring self-posts and sidebar recommendations), pending follow-request (-cancel) support, dynamic platform send shortcut badges, storage-only live config sync, Safari Userscript menu/pill/i18n persistence, accessible dark-mode popup recorder, and g + digit removal on /home. | Draft |
+| 1.0.18 | 2026-11-19 | Fix Korean/IME g-prefix navigation shortcuts (gh, gp, etc.) on /explore by distinguishing collapsed chat-drawer-root from expanded XChat overlays, recovering unresolved IME keydown (Process/229) followed by ASCII keyup, adding DOM/SPA navigation fallback when Mousetrap does not consume synthetic keypress, and blurring SearchBox_Search_Input on Escape once its typeahead dropdown is closed. | Submitted |
+| 1.0.17 | 2026-11-14 | Add shared multilingual keymap module (adding Hebrew, Greek, and Thai layouts), 180ms window-focus guard and pure-ASCII orphan keyup filter while keeping IME recovery, safe status-page follow targeting (ignoring self-posts and sidebar recommendations), pending follow-request (-cancel) support, dynamic platform send shortcut badges, storage-only live config sync, Safari Userscript menu/pill/i18n persistence, accessible dark-mode popup recorder, and g + digit removal on /home. | Superseded |
 | 1.0.16 | 2026-11-11 | Yield the main thread cooperatively during Shift+F follow-list filtering, eliminate redundant DOM/style writes and MutationObserver feedback loops, apply CSS containment to collapsed rows, and keep UI interactions (J/K, F, Y/N, manual scroll, clicks) responsive. | Submitted |
 | 1.0.15 |2026-11-11 | Fix shortcuts (such as Korean `ㅜ` → `N` Compose Post) firing in XChat (`/i/chat`, floating chat drawer, and overlays), closed/nested Shadow DOMs, `EditContext`, `[role="combobox"]`, iframes, modal dialogs, and transient IME popups; also block untrusted synthetic shortcut events while Shadow DOM inputs are active. | Submitted |
 | 1.0.14 | 2026-11-11 | Extend floating filter bar and Shift+F shortcut to /followers and /verified_followers to show only followers you have not followed back yet | Superseded |

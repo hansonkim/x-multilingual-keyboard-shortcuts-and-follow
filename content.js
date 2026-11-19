@@ -815,9 +815,32 @@ function isEditableEvent(e, root = typeof document !== 'undefined' ? document : 
   return Boolean(deepActive && (isEditableNode(deepActive, visited) || isEmbeddedFrameElement(deepActive)));
 }
 
+function isExpandedChatDrawerRoot(el) {
+  if (!el || el.nodeType !== 1) return false;
+  if (
+    el.querySelector?.(
+      '[data-testid="xchatEmbedDrawer"], [data-testid="xchatEmbedOverlays"], [role="listbox"], textarea, input, [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"]'
+    )
+  ) {
+    return true;
+  }
+  if (typeof el.getBoundingClientRect === 'function') {
+    const rect = el.getBoundingClientRect();
+    if (rect && typeof rect.height === 'number' && rect.height > 0) {
+      return rect.height > 80;
+    }
+  }
+  if (el.querySelector?.('[data-testid="chat-drawer-main"]')) {
+    return false;
+  }
+  return true;
+}
+
 function matchesElementTestId(el, testIds) {
   const tid = el?.getAttribute?.('data-testid');
-  return Boolean(tid && testIds.has(tid));
+  if (!tid || !testIds.has(tid)) return false;
+  if (tid === 'chat-drawer-root') return isExpandedChatDrawerRoot(el);
+  return true;
 }
 
 const XCHAT_HOST_TESTIDS = new Set([
@@ -856,7 +879,13 @@ function nodeTouchesTestIdsOrSelector(
         cur = rootNode.host;
         continue;
       }
-      if (selector && (cur.matches?.(selector) || cur.closest?.(selector))) return true;
+      if (selector) {
+        if (!testIds && cur.matches?.(selector)) return true;
+        const closestMatch = cur.closest?.(selector);
+        if (closestMatch && (!testIds || closestMatch === true || matchesElementTestId(closestMatch, testIds))) {
+          return true;
+        }
+      }
       break;
     }
     const rootNode = cur.getRootNode?.();
@@ -1707,18 +1736,117 @@ function getDispatchTarget(root = document) {
   return root.body || root;
 }
 
-function dispatchNativeSpec(spec, modifiers = {}, root = document) {
+function dispatchNativeSpecWithResult(spec, modifiers = {}, root = document) {
   const target1 = getDispatchTarget(root);
-  if (!target1?.dispatchEvent) return false;
+  if (!target1?.dispatchEvent) return { dispatched: false, handledByPage: false };
   const kd = createSyntheticKeyboardEvent('keydown', spec, modifiers);
   target1.dispatchEvent(kd);
+  let kp = null;
   if (spec.sendKeypress) {
     const target2 = getDispatchTarget(root);
-    const kp = createSyntheticKeyboardEvent('keypress', spec, modifiers);
+    kp = createSyntheticKeyboardEvent('keypress', spec, modifiers);
     target2.dispatchEvent(kp);
   }
   scheduleUiSync();
-  return true;
+  return {
+    dispatched: true,
+    handledByPage: Boolean(kd.defaultPrevented || kp?.defaultPrevented)
+  };
+}
+
+function dispatchNativeSpec(spec, modifiers = {}, root = document) {
+  return dispatchNativeSpecWithResult(spec, modifiers, root).dispatched;
+}
+
+const G_PREFIX_LINK_SELECTORS = {
+  KeyH: 'header nav a[data-testid="AppTabBar_Home_Link"]',
+  KeyE: 'header nav a[data-testid="AppTabBar_Explore_Link"]',
+  KeyN: 'header nav a[data-testid="AppTabBar_Notifications_Link"]',
+  KeyR: 'a[href="/notifications/mentions"]',
+  KeyP: 'header nav a[data-testid="AppTabBar_Profile_Link"]',
+  KeyF: 'a[href="/compose/post/unsent/drafts"]',
+  KeyT: 'a[href="/compose/post/unsent/scheduled"]',
+  KeyI: 'header nav a[href$="/lists"]',
+  KeyM: 'header nav a[data-testid="AppTabBar_DirectMessage_Link"]',
+  KeyG: 'header nav a[href="/i/grok"]',
+  KeyC: 'header nav a[href*="/creators/studio"]',
+  KeyS: 'header nav a[href="/settings"]',
+  KeyB: 'header nav a[href="/i/bookmarks"]',
+  KeyD: 'header nav a[href="/i/display"]'
+};
+
+function resolveGPrefixFallbackPath(code, root = document) {
+  switch (code) {
+    case 'KeyH':
+      return '/home';
+    case 'KeyE':
+      return '/explore';
+    case 'KeyN':
+      return '/notifications';
+    case 'KeyR':
+      return '/notifications/mentions';
+    case 'KeyF':
+      return '/compose/post/unsent/drafts';
+    case 'KeyT':
+      return '/compose/post/unsent/scheduled';
+    case 'KeyM':
+      return '/messages';
+    case 'KeyG':
+      return '/i/grok';
+    case 'KeyC':
+      return '/i/jf/creators/studio';
+    case 'KeyS':
+      return '/settings';
+    case 'KeyB':
+      return '/i/bookmarks';
+    case 'KeyD':
+      return '/i/display';
+    case 'KeyP':
+    case 'KeyL':
+    case 'KeyI': {
+      const username = getLoggedInUsername(root);
+      if (!username) return null;
+      if (code === 'KeyP') return `/${username}`;
+      if (code === 'KeyL') return `/${username}/likes`;
+      return `/${username}/lists`;
+    }
+    default:
+      return null;
+  }
+}
+
+function triggerGPrefixNavigationFallback(code, root = document) {
+  const linkSelector = G_PREFIX_LINK_SELECTORS[code];
+  if (linkSelector) {
+    const link = root?.querySelector?.(linkSelector);
+    if (link && typeof link.click === 'function') {
+      link.click();
+      scheduleUiSync();
+      return true;
+    }
+  }
+  const targetPath = resolveGPrefixFallbackPath(code, root);
+  if (!targetPath) return false;
+  const exactLink = root?.querySelector?.(`a[href="${targetPath}"]`);
+  if (exactLink && typeof exactLink.click === 'function') {
+    exactLink.click();
+    scheduleUiSync();
+    return true;
+  }
+  if (
+    typeof history !== 'undefined' &&
+    typeof history.pushState === 'function' &&
+    typeof window !== 'undefined' &&
+    typeof window.dispatchEvent === 'function'
+  ) {
+    history.pushState({}, '', targetPath);
+    const ev =
+      typeof PopStateEvent === 'function' ? new PopStateEvent('popstate') : { type: 'popstate' };
+    window.dispatchEvent(ev);
+    scheduleUiSync();
+    return true;
+  }
+  return false;
 }
 
 function isAlreadyNativeAsciiEvent(e, spec) {
@@ -3060,9 +3188,35 @@ function handleXNativeShortcutIfMatched(
   const code = resolveKeyCode(e);
   if (!code) return false;
 
-  // 1. Inside editable fields: only support Cmd+Enter / Ctrl+Enter (Send post) when IME is composing
+  // 1. Inside editable fields: blur SearchBox_Search_Input on Escape once its dropdown is closed,
+  // and support Cmd+Enter / Ctrl+Enter (Send post) when IME is composing
   if (editable) {
     clearPendingPrefix();
+    if (!forceDispatch && e.type !== 'keyup' && !e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && code === 'Escape') {
+      const composing = e.isComposing || e.key === 'Process' || e.keyCode === 229 || e.which === 229;
+      if (!composing) {
+        const target = getEventTarget(e, root);
+        const deepActive = getDeepActiveElement(root);
+        const searchInput =
+          target?.getAttribute?.('data-testid') === 'SearchBox_Search_Input'
+            ? target
+            : deepActive?.getAttribute?.('data-testid') === 'SearchBox_Search_Input'
+              ? deepActive
+              : null;
+        if (
+          searchInput &&
+          searchInput.getAttribute?.('aria-expanded') !== 'true' &&
+          typeof searchInput.blur === 'function'
+        ) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          searchInput.blur();
+          scheduleUiSync();
+          return true;
+        }
+      }
+    }
     if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && code === 'Enter') {
       const spec = codeToNativeSpec('Enter', false);
       if (pendingComposingEnterSend) {
@@ -3191,7 +3345,10 @@ function handleXNativeShortcutIfMatched(
     e.stopImmediatePropagation();
     // If prefix 'g' was pressed in a non-ASCII mode where Mousetrap already received synthetic 'g',
     // dispatching the second key completes the sequence.
-    dispatchNativeSpec(spec, {}, root);
+    const dispatchRes = dispatchNativeSpecWithResult(spec, {}, root);
+    if (!dispatchRes.handledByPage) {
+      triggerGPrefixNavigationFallback(code, root);
+    }
     return true;
   }
 
@@ -3377,6 +3534,7 @@ const handledKeysDown = new Set();
 const seenKeysDown = new Set();
 const ignoredModifierKeysDown = new Set();
 let pendingUnresolvedEditableKeydown = false;
+let pendingUnresolvedImeKeydown = false;
 let repeatDelayTimer = null;
 let repeatIntervalTimer = null;
 let repeatingCode = null;
@@ -3436,9 +3594,15 @@ window.addEventListener(
     const editable = isEditableEvent(e, document);
     if (editable) {
       clearPendingPrefix();
+      pendingUnresolvedImeKeydown = false;
       if (!code) pendingUnresolvedEditableKeydown = true;
     } else {
       pendingUnresolvedEditableKeydown = false;
+      if (!code && isPotentialImeKey(e)) {
+        pendingUnresolvedImeKeydown = true;
+      } else if (code) {
+        pendingUnresolvedImeKeydown = false;
+      }
     }
     if (code) seenKeysDown.add(code);
 
@@ -3518,6 +3682,8 @@ window.addEventListener(
       scheduleUiSync();
     }
     const code = resolveKeyCode(e);
+    const hadUnresolvedImeKeydown = pendingUnresolvedImeKeydown;
+    pendingUnresolvedImeKeydown = false;
     if (!code || code === repeatingCode) {
       clearRepeatTimer();
     }
@@ -3555,13 +3721,13 @@ window.addEventListener(
     }
 
     // 1. Window focus guard: drop orphan keyups occurring within 180ms of window focus (e.g. tab/app switch Cmd+2, Alt+Tab)
-    if (Date.now() - lastWindowFocusAt < 180) {
+    if (!hadUnresolvedImeKeydown && Date.now() - lastWindowFocusAt < 180) {
       return;
     }
 
     // 2. Pure ASCII / Enter / Space orphan keyup filter: ignore orphan keyups when no prefix sequence is active,
     // while preserving Korean / CJK IME keyup recovery.
-    if (!getActivePrefix() && isPureAsciiOrphanKeyup(e)) {
+    if (!hadUnresolvedImeKeydown && !getActivePrefix() && isPureAsciiOrphanKeyup(e)) {
       return;
     }
 
@@ -3698,6 +3864,8 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
         seenKeysDown.clear();
         handledKeysDown.clear();
         ignoredModifierKeysDown.clear();
+        pendingUnresolvedEditableKeydown = false;
+        pendingUnresolvedImeKeydown = false;
       }
     },
     true
@@ -3708,6 +3876,7 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
     seenKeysDown.clear();
     ignoredModifierKeysDown.clear();
     pendingUnresolvedEditableKeydown = false;
+    pendingUnresolvedImeKeydown = false;
     clearPendingPrefix();
   });
   window.addEventListener('focusin', scheduleUiSync, true);

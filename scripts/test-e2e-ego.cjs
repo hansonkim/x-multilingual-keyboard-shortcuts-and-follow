@@ -1072,6 +1072,149 @@ try {
     };
   });
   result.popupCheck = popupCheck;
+  await popupPage.close();
+
+  // Stage 5: Live /explore Korean IME navigation, collapsed chat-drawer-root, SearchBox Escape blur, and unresolved IME keyup recovery
+  await page.goto("https://x.com/explore");
+  await page.waitForSelector('[data-testid="SearchBox_Search_Input"]', { timeout: 30000 });
+  await page.waitForTimeout(1000);
+  await neutralizeInstalledExtension();
+
+  const exploreAb = await page.evaluate(async ({ sharedCode, contentCode }) => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const press = (key, codeStr, opts = {}) => {
+      const target = document.activeElement || document.body;
+      target.dispatchEvent(new KeyboardEvent("keydown", { key, code: codeStr, bubbles: true, cancelable: true, ...opts }));
+      target.dispatchEvent(new KeyboardEvent("keyup", { key, code: codeStr, bubbles: true, cancelable: true, ...opts }));
+    };
+    const waitPath = async (pred, ms = 3000) => {
+      const start = Date.now();
+      while (Date.now() - start < ms) {
+        if (pred(location.pathname)) return true;
+        await sleep(50);
+      }
+      return pred(location.pathname);
+    };
+
+    document.activeElement?.blur?.();
+    new Function(sharedCode)();
+    const xfsModule = { exports: {} };
+    new Function("module", "exports", contentCode)(xfsModule, xfsModule.exports);
+    window.__XFS_CONTENT_API = xfsModule.exports;
+
+    // 5a: /explore BODY -> Korean gh -> /home -> Korean ge -> /explore
+    press("ㅎ", "KeyG", { keyCode: 229, isComposing: true });
+    await sleep(60);
+    press("ㅗ", "KeyH", { keyCode: 229, isComposing: true });
+    const ghToHome = await waitPath((p) => p === "/home");
+
+    press("ㅎ", "KeyG", { keyCode: 229, isComposing: true });
+    await sleep(60);
+    press("ㄷ", "KeyE", { keyCode: 229, isComposing: true });
+    const geBackToExplore = await waitPath((p) => p.startsWith("/explore"));
+    await sleep(250);
+
+    // 5b: Collapsed [data-testid="chat-drawer-main"] focused -> Korean gp -> /Hanssony_ -> Korean ge -> /explore
+    const chatBtn = document.querySelector('[data-testid="chat-drawer-main"]');
+    const chatBtnExists = Boolean(chatBtn);
+    if (chatBtn) chatBtn.focus();
+    const chatBtnFocused = document.activeElement === chatBtn;
+    const chatOverlayFlag = xfsModule.exports.isInsideXChatOverlay(null, document);
+    press("ㅎ", "KeyG", { keyCode: 229, isComposing: true });
+    await sleep(60);
+    press("ㅔ", "KeyP", { keyCode: 229, isComposing: true });
+    const gpFromChatBtn = await waitPath((p) => p === "/Hanssony_");
+
+    press("ㅎ", "KeyG", { keyCode: 229, isComposing: true });
+    await sleep(60);
+    press("ㄷ", "KeyE", { keyCode: 229, isComposing: true });
+    const geBackBeforeEsc = await waitPath((p) => p.startsWith("/explore"));
+    await sleep(250);
+
+    return {
+      ghToHome,
+      geBackToExplore,
+      chatBtnExists,
+      chatBtnFocused,
+      chatOverlayFlag,
+      gpFromChatBtn,
+      geBackBeforeEsc
+    };
+  }, { sharedCode: sharedKeymapSrc, contentCode: contentJsSrc });
+
+  // 5c: Click SearchBox_Search_Input -> Escape #1 closes dropdown -> Escape #2 blurs input -> Korean gh -> /home
+  await page.waitForSelector('[data-testid="SearchBox_Search_Input"]', { timeout: 10000 });
+  await page.click('[data-testid="SearchBox_Search_Input"]');
+  await page.waitForTimeout(800);
+  const snapSearchBox = () => page.evaluate(() => {
+    const input = document.querySelector('[data-testid="SearchBox_Search_Input"]');
+    const lb = document.querySelector('[role="listbox"]');
+    return {
+      activeTag: document.activeElement?.tagName || null,
+      activeTestId: document.activeElement?.getAttribute?.("data-testid") || null,
+      ariaExpanded: input?.getAttribute("aria-expanded") || null,
+      hasListbox: Boolean(lb)
+    };
+  });
+
+  const searchOpened = await snapSearchBox();
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(250);
+  const afterEsc1 = await snapSearchBox();
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(250);
+  const afterEsc2 = await snapSearchBox();
+
+  const exploreCd = await page.evaluate(async () => {
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+    const press = (key, codeStr, opts = {}) => {
+      const target = document.activeElement || document.body;
+      target.dispatchEvent(new KeyboardEvent("keydown", { key, code: codeStr, bubbles: true, cancelable: true, ...opts }));
+      target.dispatchEvent(new KeyboardEvent("keyup", { key, code: codeStr, bubbles: true, cancelable: true, ...opts }));
+    };
+    const waitPath = async (pred, ms = 3000) => {
+      const start = Date.now();
+      while (Date.now() - start < ms) {
+        if (pred(location.pathname)) return true;
+        await sleep(50);
+      }
+      return pred(location.pathname);
+    };
+
+    press("ㅎ", "KeyG", { keyCode: 229, isComposing: true });
+    await sleep(60);
+    press("ㅗ", "KeyH", { keyCode: 229, isComposing: true });
+    const ghAfterEsc2ToHome = await waitPath((p) => p === "/home");
+
+    // 5d: Return to /explore and verify unresolved IME keydown (Process / 229) + ASCII keyup recovery
+    press("ㅎ", "KeyG", { keyCode: 229, isComposing: true });
+    await sleep(60);
+    press("ㄷ", "KeyE", { keyCode: 229, isComposing: true });
+    const geBeforeRecovery = await waitPath((p) => p.startsWith("/explore"));
+    await sleep(250);
+
+    document.activeElement?.blur?.();
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Process", code: "", keyCode: 229, isComposing: true, bubbles: true, cancelable: true }));
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "g", code: "KeyG", keyCode: 71, isComposing: false, bubbles: true, cancelable: true }));
+    await sleep(60);
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "Process", code: "", keyCode: 229, isComposing: true, bubbles: true, cancelable: true }));
+    window.dispatchEvent(new KeyboardEvent("keyup", { key: "h", code: "KeyH", keyCode: 72, isComposing: false, bubbles: true, cancelable: true }));
+    const unresolvedRecoveryToHome = await waitPath((p) => p === "/home");
+
+    return {
+      ghAfterEsc2ToHome,
+      geBeforeRecovery,
+      unresolvedRecoveryToHome
+    };
+  });
+
+  result.exploreCheck = {
+    ...exploreAb,
+    searchOpened,
+    afterEsc1,
+    afterEsc2,
+    ...exploreCd
+  };
   result.neutralizedExtensionContextCount = extensionContextIds.size;
 
   console.log("EGO_E2E_RESULT:" + JSON.stringify(result));
@@ -1359,6 +1502,75 @@ assert.equal(res.popupCheck.designChangedTo1, true, 'Changing #compact-pill-desi
 assert.equal(res.popupCheck.langChangedToKo, true, 'Changing #lang-select to "ko" must update html lang and persist uiLang');
 assert.equal(res.popupCheck.tabsSendMessageCount, 0, 'popup.js must use storage-only updates (0 tabs.sendMessage calls)');
 assert.deepEqual(res.popupCheck.popupErrors, [], 'popup page must have zero uncaught runtime errors');
+
+// 20. /explore Korean IME navigation & SearchBox Escape blur assertions (Stage 5)
+assert.equal(res.exploreCheck.ghToHome, true, '/explore BODY + Korean gh must navigate to /home');
+assert.equal(res.exploreCheck.geBackToExplore, true, 'Korean ge must return to /explore');
+assert.equal(res.exploreCheck.chatBtnExists, true, 'Collapsed chat-drawer-main button must exist on /explore');
+assert.equal(res.exploreCheck.chatBtnFocused, true, 'chat-drawer-main must receive focus for collapsed-drawer check');
+assert.equal(
+  res.exploreCheck.chatOverlayFlag,
+  false,
+  'Collapsed chat-drawer-root must not be classified as active XChat overlay'
+);
+assert.equal(
+  res.exploreCheck.gpFromChatBtn,
+  true,
+  'Korean gp while collapsed chat-drawer-main is focused on /explore must navigate to profile'
+);
+assert.equal(res.exploreCheck.geBackBeforeEsc, true, 'Korean ge must return to /explore before Escape check');
+assert.equal(
+  res.exploreCheck.searchOpened.ariaExpanded,
+  'true',
+  'Clicking SearchBox_Search_Input on /explore must open typeahead dropdown'
+);
+assert.equal(
+  res.exploreCheck.searchOpened.activeTestId,
+  'SearchBox_Search_Input',
+  'Clicking SearchBox_Search_Input must focus the search input'
+);
+assert.notEqual(
+  res.exploreCheck.afterEsc1.ariaExpanded,
+  'true',
+  '1st Escape on open SearchBox_Search_Input must close dropdown first'
+);
+assert.equal(
+  res.exploreCheck.afterEsc1.hasListbox,
+  false,
+  '1st Escape must dismiss typeahead listbox'
+);
+assert.equal(
+  res.exploreCheck.afterEsc1.activeTestId,
+  'SearchBox_Search_Input',
+  '1st Escape leaves SearchBox_Search_Input focused after closing dropdown'
+);
+assert.notEqual(
+  res.exploreCheck.afterEsc2.activeTag,
+  'INPUT',
+  '2nd Escape on closed SearchBox_Search_Input must blur the input'
+);
+assert.notEqual(
+  res.exploreCheck.afterEsc2.activeTestId,
+  'SearchBox_Search_Input',
+  '2nd Escape must move focus away from SearchBox_Search_Input'
+);
+assert.equal(
+  res.exploreCheck.afterEsc2.hasListbox,
+  false,
+  '2nd Escape must not re-open SearchBox typeahead listbox'
+);
+assert.equal(
+  res.exploreCheck.ghAfterEsc2ToHome,
+  true,
+  'After 2nd Escape blurs SearchBox_Search_Input, Korean gh must navigate to /home'
+);
+assert.equal(res.exploreCheck.geBeforeRecovery, true, 'Korean ge must return to /explore for IME recovery check');
+assert.equal(
+  res.exploreCheck.unresolvedRecoveryToHome,
+  true,
+  'Unresolved IME keydown (Process/229) + ASCII keyup recovery on /explore must navigate to /home'
+);
+
 console.log('Neutralized installed CWS extension contexts:', res.neutralizedExtensionContextCount);
 
 console.log(`E2E ego-browser (${egoProfileName} profile) assertions passed.`);

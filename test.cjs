@@ -4657,6 +4657,453 @@ assert.ok(
     }
   }
 
+  // 30. /explore Korean IME regressions: collapsed chat-drawer-root, unresolved IME keydown -> ASCII keyup recovery, g + ... Mousetrap fallback
+  {
+    const prevDoc = globalThis.document;
+    const prevLoc = globalThis.location;
+    const prevWin = globalThis.window;
+    const prevHist = globalThis.history;
+    const origDateNow = Date.now;
+
+    try {
+      // 30a. Collapsed vs. expanded [data-testid="chat-drawer-root"] on /explore
+      {
+        let homeClicks = 0;
+        let profileClicks = 0;
+        const homeLink = {
+          getAttribute: (k) => (k === 'href' ? '/home' : k === 'data-testid' ? 'AppTabBar_Home_Link' : null),
+          click() { homeClicks++; }
+        };
+        const profileLink = {
+          getAttribute: (k) => (k === 'href' ? '/Hanssony_' : k === 'data-testid' ? 'AppTabBar_Profile_Link' : null),
+          click() { profileClicks++; }
+        };
+
+        let drawerExpanded = false;
+        const chatDrawerMain = {
+          nodeType: 1,
+          tagName: 'BUTTON',
+          isContentEditable: false,
+          getAttribute: (k) => (k === 'data-testid' ? 'chat-drawer-main' : k === 'role' ? 'button' : null),
+          closest: () => null
+        };
+        const chatDrawerRoot = {
+          nodeType: 1,
+          tagName: 'DIV',
+          isContentEditable: false,
+          getAttribute: (k) => (k === 'data-testid' ? 'chat-drawer-root' : null),
+          getBoundingClientRect: () => ({ height: drawerExpanded ? 530 : 55 }),
+          querySelector: (sel) => {
+            if (drawerExpanded && sel.includes('xchatEmbedDrawer')) return { nodeType: 1 };
+            if (!drawerExpanded && sel === '[data-testid="chat-drawer-main"]') return chatDrawerMain;
+            return null;
+          },
+          closest: () => null
+        };
+        chatDrawerMain.parentElement = chatDrawerRoot;
+
+        const exploreDispatched = [];
+        const exploreBody = {
+          nodeType: 1,
+          tagName: 'BODY',
+          dispatchEvent(ev) {
+            exploreDispatched.push({ type: ev.type, key: ev.key });
+            return true;
+          }
+        };
+        chatDrawerMain.dispatchEvent = (ev) => {
+          exploreDispatched.push({ type: ev.type, key: ev.key });
+          return true;
+        };
+
+        const exploreDoc = {
+          body: exploreBody,
+          documentElement: { nodeType: 1, tagName: 'HTML' },
+          activeElement: chatDrawerMain,
+          querySelector(sel) {
+            if (sel === 'header nav a[data-testid="AppTabBar_Home_Link"]') return homeLink;
+            if (sel === 'header nav a[data-testid="AppTabBar_Profile_Link"]') return profileLink;
+            return null;
+          },
+          querySelectorAll: () => []
+        };
+
+        globalThis.document = exploreDoc;
+        globalThis.location = { pathname: '/explore' };
+
+        // Collapsed drawer (height: 55, no xchatEmbedDrawer): must NOT suppress Korean gh / gp
+        clearPendingPrefix();
+        const evG = makeEv({
+          key: 'ㅎ',
+          code: 'KeyG',
+          target: chatDrawerMain,
+          composedPath: () => [chatDrawerMain, chatDrawerRoot, exploreBody, exploreDoc]
+        });
+        const evH = makeEv({
+          key: 'ㅗ',
+          code: 'KeyH',
+          target: chatDrawerMain,
+          composedPath: () => [chatDrawerMain, chatDrawerRoot, exploreBody, exploreDoc]
+        });
+        assert.equal(isInsideXChatOverlay(evG, exploreDoc), false, 'Collapsed chat-drawer-root must not be treated as active XChat overlay');
+        assert.equal(handleActionIfMatched(evG, exploreDoc, false), true, 'Korean g must trigger inside collapsed chat-drawer-main');
+        assert.equal(handleActionIfMatched(evH, exploreDoc, false), true, 'Korean h after g must trigger gh on /explore');
+        assert.equal(homeClicks, 1, 'gh must click AppTabBar_Home_Link when Mousetrap does not preventDefault');
+
+        clearPendingPrefix();
+        const evG2 = makeEv({
+          key: 'ㅎ',
+          code: 'KeyG',
+          target: chatDrawerMain,
+          composedPath: () => [chatDrawerMain, chatDrawerRoot, exploreBody, exploreDoc]
+        });
+        const evP = makeEv({
+          key: 'ㅔ',
+          code: 'KeyP',
+          target: chatDrawerMain,
+          composedPath: () => [chatDrawerMain, chatDrawerRoot, exploreBody, exploreDoc]
+        });
+        assert.equal(handleActionIfMatched(evG2, exploreDoc, false), true);
+        assert.equal(handleActionIfMatched(evP, exploreDoc, false), true);
+        assert.equal(profileClicks, 1, 'gp must click AppTabBar_Profile_Link when Mousetrap does not preventDefault');
+
+        // Expanded drawer (height: 530 / xchatEmbedDrawer mounted): must still suppress shortcuts
+        drawerExpanded = true;
+        clearPendingPrefix();
+        const evExpanded = makeEv({
+          key: 'ㅎ',
+          code: 'KeyG',
+          target: chatDrawerMain,
+          composedPath: () => [chatDrawerMain, chatDrawerRoot, exploreBody, exploreDoc]
+        });
+        assert.equal(isInsideXChatOverlay(evExpanded, exploreDoc), true, 'Expanded chat-drawer-root must still suppress shortcuts');
+        assert.equal(handleActionIfMatched(evExpanded, exploreDoc, false), false);
+        assert.equal(homeClicks, 1);
+        assert.equal(profileClicks, 1);
+      }
+
+      // 30b. Unresolved non-editable IME keydown (Process / code: '' / keyCode: 229) + ASCII keyup ('g' / KeyG) recovery
+      {
+        let mockNow = 7000000;
+        Date.now = () => mockNow;
+        let homeClicks = 0;
+        let profileClicks = 0;
+        const homeLink = {
+          getAttribute: (k) => (k === 'href' ? '/home' : null),
+          click() { homeClicks++; }
+        };
+        const profileLink = {
+          getAttribute: (k) => (k === 'href' ? '/Hanssony_' : null),
+          click() { profileClicks++; }
+        };
+        const recDispatched = [];
+        const recBody = {
+          nodeType: 1,
+          tagName: 'BODY',
+          dispatchEvent(ev) {
+            recDispatched.push({ type: ev.type, key: ev.key });
+            return true;
+          }
+        };
+        const recDoc = {
+          body: recBody,
+          documentElement: { nodeType: 1, tagName: 'HTML' },
+          activeElement: recBody,
+          querySelector(sel) {
+            if (sel === 'header nav a[data-testid="AppTabBar_Home_Link"]') return homeLink;
+            if (sel === 'header nav a[data-testid="AppTabBar_Profile_Link"]') return profileLink;
+            return null;
+          },
+          querySelectorAll: () => []
+        };
+
+        globalThis.document = recDoc;
+        globalThis.location = { pathname: '/explore' };
+        for (const fn of listeners.focus || []) fn({ target: globalThis.window });
+        clearPendingPrefix();
+        mockNow += 300;
+
+        // 1) Standalone orphan ASCII keyup 'g' with NO preceding unresolved IME keydown remains suppressed
+        recDispatched.length = 0;
+        for (const fn of listeners.keyup || []) {
+          fn(makeEv({ key: 'g', code: 'KeyG', keyCode: 71, isComposing: false, target: recBody }));
+        }
+        assert.equal(recDispatched.length, 0, 'Standalone pure-ASCII orphan keyup "g" must stay suppressed');
+
+        // 2) Unresolved IME keydown (Process, code: '', keyCode: 229) -> ASCII keyup ('g', KeyG, 71) -> 'ㅗ' (gh)
+        for (const fn of listeners.keydown || []) {
+          fn(makeEv({ key: 'Process', code: '', keyCode: 229, which: 229, isComposing: true, target: recBody }));
+        }
+        for (const fn of listeners.keyup || []) {
+          fn(makeEv({ key: 'g', code: 'KeyG', keyCode: 71, which: 71, isComposing: false, target: recBody }));
+        }
+        for (const fn of listeners.keydown || []) {
+          fn(makeEv({ key: 'ㅗ', code: 'KeyH', keyCode: 229, which: 229, isComposing: true, target: recBody }));
+        }
+        for (const fn of listeners.keyup || []) {
+          fn(makeEv({ key: 'h', code: 'KeyH', keyCode: 72, which: 72, isComposing: false, target: recBody }));
+        }
+        assert.equal(homeClicks, 1, 'Unresolved IME keydown + ASCII keyup "g" followed by "h" must complete gh');
+
+        // 3) Same recovery path for 'g' -> 'p' when second keydown is also unresolved IME Process + ASCII keyup 'p'
+        clearPendingPrefix();
+        for (const fn of listeners.keydown || []) {
+          fn(makeEv({ key: 'Process', code: '', keyCode: 229, which: 229, isComposing: true, target: recBody }));
+        }
+        for (const fn of listeners.keyup || []) {
+          fn(makeEv({ key: 'g', code: 'KeyG', keyCode: 71, which: 71, isComposing: false, target: recBody }));
+        }
+        for (const fn of listeners.keydown || []) {
+          fn(makeEv({ key: 'Process', code: '', keyCode: 229, which: 229, isComposing: true, target: recBody }));
+        }
+        for (const fn of listeners.keyup || []) {
+          fn(makeEv({ key: 'p', code: 'KeyP', keyCode: 80, which: 80, isComposing: false, target: recBody }));
+        }
+        assert.equal(profileClicks, 1, 'Unresolved IME keydown + ASCII keyup for both "g" and "p" must complete gp');
+      }
+
+      // 30c. g + ... SPA history.pushState fallback when nav links absent, and no double-navigation when Mousetrap calls preventDefault()
+      {
+        const pushedPaths = [];
+        let popstateCount = 0;
+        let pageShouldHandleKeypress = false;
+        let navHomeClicks = 0;
+        let hasNavLinks = false;
+
+        globalThis.window = {
+          ...(prevWin || {}),
+          dispatchEvent(ev) {
+            if (ev?.type === 'popstate') popstateCount++;
+            return true;
+          }
+        };
+        globalThis.history = {
+          pushState(state, title, url) {
+            pushedPaths.push(url);
+          }
+        };
+
+        const spaBody = {
+          nodeType: 1,
+          tagName: 'BODY',
+          dispatchEvent(ev) {
+            if (pageShouldHandleKeypress && ev.type === 'keypress') {
+              ev.preventDefault?.();
+              ev.defaultPrevented = true;
+              return false;
+            }
+            return true;
+          }
+        };
+        const navHomeLink = {
+          getAttribute: (k) => (k === 'href' ? '/home' : null),
+          click() { navHomeClicks++; }
+        };
+        const navProfileLink = {
+          getAttribute: (k) => (k === 'href' ? '/Hanssony_' : null),
+          click() {}
+        };
+        const spaDoc = {
+          body: spaBody,
+          documentElement: { nodeType: 1, tagName: 'HTML' },
+          activeElement: spaBody,
+          querySelector(sel) {
+            if (sel === 'header nav a[data-testid="AppTabBar_Profile_Link"]') {
+              return hasNavLinks ? navProfileLink : { getAttribute: (k) => (k === 'href' ? '/Hanssony_' : null) };
+            }
+            if (hasNavLinks && sel === 'header nav a[data-testid="AppTabBar_Home_Link"]') {
+              return navHomeLink;
+            }
+            return null;
+          },
+          querySelectorAll: () => []
+        };
+
+        globalThis.document = spaDoc;
+        globalThis.location = { pathname: '/explore' };
+
+        // 1) Nav link absent & Mousetrap did NOT preventDefault -> history.pushState + popstate fallback
+        clearPendingPrefix();
+        handleActionIfMatched(makeEv({ key: 'ㅎ', code: 'KeyG', target: spaBody }), spaDoc, false);
+        handleActionIfMatched(makeEv({ key: 'ㅗ', code: 'KeyH', target: spaBody }), spaDoc, false);
+        handleActionIfMatched(makeEv({ key: 'ㅎ', code: 'KeyG', target: spaBody }), spaDoc, false);
+        handleActionIfMatched(makeEv({ key: 'ㅔ', code: 'KeyP', target: spaBody }), spaDoc, false);
+        assert.deepEqual(pushedPaths, ['/home', '/Hanssony_'], 'Fallback must pushState /home and /Hanssony_ when Mousetrap does not preventDefault');
+        assert.equal(popstateCount, 2, 'Fallback must dispatch popstate for each pushState navigation');
+
+        // 2) When Mousetrap calls preventDefault() on synthetic keypress -> NO nav link click and NO pushState
+        pageShouldHandleKeypress = true;
+        hasNavLinks = true;
+        pushedPaths.length = 0;
+        clearPendingPrefix();
+        handleActionIfMatched(makeEv({ key: 'ㅎ', code: 'KeyG', target: spaBody }), spaDoc, false);
+        handleActionIfMatched(makeEv({ key: 'ㅗ', code: 'KeyH', target: spaBody }), spaDoc, false);
+        assert.equal(navHomeClicks, 0, 'Must not click nav link when Mousetrap already handled synthetic keypress');
+        assert.equal(pushedPaths.length, 0, 'Must not pushState when Mousetrap already handled synthetic keypress');
+      }
+
+      // 30d. SearchBox_Search_Input Escape blur guard on /explore
+      {
+        let homeClicks = 0;
+        let blurCalls = 0;
+        let ariaExpanded = 'true';
+        const escBody = {
+          nodeType: 1,
+          tagName: 'BODY',
+          dispatchEvent: () => true
+        };
+        const escHomeLink = {
+          getAttribute: (k) => (k === 'href' ? '/home' : null),
+          click() { homeClicks++; }
+        };
+        const searchInput = {
+          nodeType: 1,
+          tagName: 'INPUT',
+          getAttribute: (k) => {
+            if (k === 'data-testid') return 'SearchBox_Search_Input';
+            if (k === 'role') return 'combobox';
+            if (k === 'aria-expanded') return ariaExpanded;
+            return null;
+          },
+          closest: () => null,
+          blur() {
+            blurCalls++;
+            escDoc.activeElement = escBody;
+          }
+        };
+        const escDoc = {
+          body: escBody,
+          documentElement: { nodeType: 1, tagName: 'HTML' },
+          activeElement: searchInput,
+          querySelector(sel) {
+            if (sel === 'header nav a[data-testid="AppTabBar_Home_Link"]') return escHomeLink;
+            return null;
+          },
+          querySelectorAll: () => []
+        };
+
+        globalThis.document = escDoc;
+        globalThis.location = { pathname: '/explore' };
+        clearPendingPrefix();
+
+        // 1) aria-expanded="true" -> Escape must NOT blur (let X close dropdown first)
+        let prevented = false;
+        assert.equal(
+          handleActionIfMatched(
+            makeEv({
+              type: 'keydown',
+              key: 'Escape',
+              code: 'Escape',
+              target: searchInput,
+              composedPath: () => [searchInput, escBody, escDoc],
+              preventDefault() { prevented = true; }
+            }),
+            escDoc,
+            false
+          ),
+          false,
+          'Escape with aria-expanded="true" must not blur SearchBox_Search_Input'
+        );
+        assert.equal(blurCalls, 0);
+        assert.equal(prevented, false);
+
+        // 2) aria-expanded: null during IME composition -> must NOT blur
+        ariaExpanded = null;
+        assert.equal(
+          handleActionIfMatched(
+            makeEv({
+              type: 'keydown',
+              key: 'Process',
+              code: 'Escape',
+              keyCode: 229,
+              isComposing: true,
+              target: searchInput,
+              composedPath: () => [searchInput, escBody, escDoc]
+            }),
+            escDoc,
+            false
+          ),
+          false,
+          'Escape during IME composition must not blur SearchBox_Search_Input'
+        );
+        assert.equal(blurCalls, 0);
+
+        // 3) keyup or forceDispatch=true -> must NOT blur
+        assert.equal(
+          handleActionIfMatched(
+            makeEv({
+              type: 'keyup',
+              key: 'Escape',
+              code: 'Escape',
+              target: searchInput,
+              composedPath: () => [searchInput, escBody, escDoc]
+            }),
+            escDoc,
+            false
+          ),
+          false,
+          'Escape keyup must not blur SearchBox_Search_Input'
+        );
+        assert.equal(
+          handleActionIfMatched(
+            makeEv({
+              type: 'keydown',
+              key: 'Escape',
+              code: 'Escape',
+              target: searchInput,
+              composedPath: () => [searchInput, escBody, escDoc]
+            }),
+            escDoc,
+            true
+          ),
+          false,
+          'forceDispatch=true Escape must not blur SearchBox_Search_Input'
+        );
+        assert.equal(blurCalls, 0);
+
+        // 4) Plain Escape keydown with aria-expanded=null -> blurs SearchBox_Search_Input, restoring gh in Korean IME
+        let escPrevented = false;
+        let escStopped = false;
+        assert.equal(
+          handleActionIfMatched(
+            makeEv({
+              type: 'keydown',
+              key: 'Escape',
+              code: 'Escape',
+              target: searchInput,
+              composedPath: () => [searchInput, escBody, escDoc],
+              preventDefault() { escPrevented = true; },
+              stopImmediatePropagation() { escStopped = true; }
+            }),
+            escDoc,
+            false
+          ),
+          true,
+          'Escape on closed SearchBox_Search_Input must blur it'
+        );
+        assert.equal(blurCalls, 1);
+        assert.equal(escPrevented, true);
+        assert.equal(escStopped, true);
+        assert.equal(escDoc.activeElement, escBody);
+
+        assert.equal(handleActionIfMatched(makeEv({ key: 'ㅎ', code: 'KeyG', target: escBody }), escDoc, false), true);
+        assert.equal(handleActionIfMatched(makeEv({ key: 'ㅗ', code: 'KeyH', target: escBody }), escDoc, false), true);
+        assert.equal(homeClicks, 1, 'After Escape blurs SearchBox_Search_Input, Korean gh must navigate to /home');
+      }
+    } finally {
+      clearPendingPrefix();
+      Date.now = origDateNow;
+      globalThis.document = prevDoc;
+      globalThis.location = prevLoc;
+      globalThis.window = prevWin;
+      if (prevHist === undefined) {
+        delete globalThis.history;
+      } else {
+        globalThis.history = prevHist;
+      }
+    }
+  }
+
   console.log('All assertions passed.');
 })().catch((err) => {
   console.error(err);
