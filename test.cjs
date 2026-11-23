@@ -5104,6 +5104,91 @@ assert.ok(
     }
   }
 
+  // Regression: gv / gw / go with Shift+F (filterNonFollowers) ON defers heavy synchronous UI sync
+  // to background timer during the brief route settle window so tab navigation is not delayed.
+  {
+    const prevDoc = globalThis.document;
+    const prevLoc = globalThis.location;
+    const prevRaf = globalThis.requestAnimationFrame;
+    const prevSetTimeout = globalThis.setTimeout;
+    const prevClearTimeout = globalThis.clearTimeout;
+    const origDateNow = Date.now;
+    let fakeNow = 1000000;
+    let rafCalls = 0;
+    const timers = [];
+    let clickedNav = null;
+    try {
+      Date.now = () => fakeNow;
+      globalThis.requestAnimationFrame = () => {
+        rafCalls++;
+        return rafCalls;
+      };
+      globalThis.setTimeout = (fn, ms) => {
+        const id = timers.length + 1;
+        timers.push({ id, fn, ms, cleared: false });
+        return id;
+      };
+      globalThis.clearTimeout = (id) => {
+        const t = timers.find((x) => x.id === id);
+        if (t) t.cleared = true;
+      };
+      globalThis.location = { pathname: '/Hanssony_/following' };
+      const navDoc = {
+        hidden: false,
+        documentElement: {
+          style: { setProperty() {}, getPropertyValue: () => '' },
+          getAttribute: () => null,
+          setAttribute() {},
+          removeAttribute() {}
+        },
+        body: { tagName: 'BODY', isContentEditable: false },
+        activeElement: null,
+        querySelector(sel) {
+          if (sel.includes('/verified_followers')) {
+            return { click() { clickedNav = 'verified_followers'; } };
+          }
+          if (sel.includes('/followers')) {
+            return { click() { clickedNav = 'followers'; } };
+          }
+          if (sel.includes('/following')) {
+            return { click() { clickedNav = 'following'; } };
+          }
+          return null;
+        },
+        getElementById: () => null
+      };
+      navDoc.activeElement = navDoc.body;
+      globalThis.document = navDoc;
+
+      setFilterNonFollowers(true, false);
+      rafCalls = 0;
+      timers.length = 0;
+      clearPendingPrefix();
+      assert.equal(handleActionIfMatched(makeEv({ key: 'ㅎ', code: 'KeyG' }), navDoc, false), true);
+      assert.equal(handleActionIfMatched(makeEv({ key: 'v', code: 'KeyV' }), navDoc, false), true);
+      assert.equal(clickedNav, 'verified_followers');
+      assert.equal(rafCalls, 0, 'gv with Shift+F ON must not schedule immediate rAF syncUiHints during settle window');
+      assert.ok(timers.some((t) => !t.cleared && t.ms >= 120), 'gv with Shift+F ON must defer sync to background timer >= 120ms');
+
+      // Advance past settle window and flush background timer
+      fakeNow += 200;
+      for (const t of timers) {
+        if (!t.cleared) t.fn();
+      }
+      scheduleUiSync();
+      assert.equal(rafCalls, 1, 'After settle window expires, scheduleUiSync resumes normal rAF scheduling');
+    } finally {
+      clearPendingPrefix();
+      setFilterNonFollowers(false, false);
+      Date.now = origDateNow;
+      globalThis.document = prevDoc;
+      globalThis.location = prevLoc;
+      globalThis.requestAnimationFrame = prevRaf;
+      globalThis.setTimeout = prevSetTimeout;
+      globalThis.clearTimeout = prevClearTimeout;
+    }
+  }
+
   console.log('All assertions passed.');
 })().catch((err) => {
   console.error(err);

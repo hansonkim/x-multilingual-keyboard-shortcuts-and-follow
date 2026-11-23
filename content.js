@@ -145,6 +145,7 @@ const FILTER_CHUNK_YIELD_MS = 20;
 const FILTER_INTERACTION_BACKOFF_MS = 120;
 const BG_UI_SYNC_MIN_INTERVAL_MS = 90;
 const BG_UI_SYNC_FILTER_INTERVAL_MS = 120;
+const NAV_SETTLE_DELAY_MS = 120;
 const USER_ACTIVE_WINDOW_MS = 160;
 const THEME_COLOR_CACHE_MS = 2000;
 
@@ -153,6 +154,7 @@ let restoreFocusTimerIds = [];
 let filterChunkTimerId = null;
 let filterChunkGeneration = 0;
 let bgUiSyncTimerId = null;
+let navSettleUntil = 0;
 let isApplyingDomSync = false;
 let pendingSyncOnVisible = false;
 let lastUiSyncFinishedAt = 0;
@@ -280,6 +282,19 @@ function syncPathnameState(pathname) {
     clearAlignTimers();
     clearRestoreFocusTimers();
     clearFilterChunkTimer();
+  }
+}
+
+function prepareForRouteNavigation() {
+  lastFocusedCellLink = null;
+  lastFocusedFilteredCell = null;
+  lastFocusedRowTop = null;
+  clearAlignTimers();
+  clearRestoreFocusTimers();
+  clearFilterChunkTimer();
+  clearBgUiSyncTimer();
+  if (filterNonFollowers) {
+    navSettleUntil = Date.now() + NAV_SETTLE_DELAY_MS;
   }
 }
 
@@ -2409,7 +2424,7 @@ function syncFollowingFilter(
   }
 
   const cells = Array.from(primary.querySelectorAll?.('[data-testid="UserCell"]') || []);
-  const isBackground = Boolean(options?.background);
+  const isBackground = Boolean(options?.background || (navSettleUntil > 0 && Date.now() < navSettleUntil));
   const canChunk = Boolean(
     (typeof document !== 'undefined' && root === document && typeof setTimeout === 'function') ||
       options?.allowChunk
@@ -3050,6 +3065,10 @@ let uiSyncScheduled = false;
 let uiSyncRafId = null;
 let uiSyncTimerId = null;
 function scheduleUiSync() {
+  if (navSettleUntil > 0 && Date.now() < navSettleUntil) {
+    scheduleBackgroundUiSync();
+    return;
+  }
   if (typeof requestAnimationFrame !== 'function' || uiSyncScheduled) return;
   clearBgUiSyncTimer();
   uiSyncScheduled = true;
@@ -3088,8 +3107,14 @@ function scheduleBackgroundUiSync() {
   if (isUserActivelyInteracting()) {
     delay = Math.max(delay, FILTER_INTERACTION_BACKOFF_MS);
   }
+  if (navSettleUntil > now) {
+    delay = Math.max(delay, navSettleUntil - now);
+  }
   bgUiSyncTimerId = setTimeout(() => {
     bgUiSyncTimerId = null;
+    if (navSettleUntil > 0 && Date.now() >= navSettleUntil) {
+      navSettleUntil = 0;
+    }
     if (typeof document !== 'undefined' && document.hidden) {
       pendingSyncOnVisible = true;
       return;
@@ -3327,10 +3352,15 @@ function handleXNativeShortcutIfMatched(
       e.preventDefault();
       e.stopPropagation();
       e.stopImmediatePropagation();
+      prepareForRouteNavigation();
       tabLink.click();
-      scheduleUiSync();
-      if (typeof requestAnimationFrame === 'function' && typeof setTimeout === 'function') {
-        setTimeout(scheduleUiSync, 80);
+      if (navSettleUntil > Date.now()) {
+        scheduleBackgroundUiSync();
+      } else {
+        scheduleUiSync();
+        if (typeof requestAnimationFrame === 'function' && typeof setTimeout === 'function') {
+          setTimeout(scheduleUiSync, 80);
+        }
       }
       return true;
     }
@@ -3884,6 +3914,10 @@ if (typeof window !== 'undefined' && typeof document !== 'undefined') {
   window.addEventListener(
     'click',
     () => {
+      if (navSettleUntil > 0 && Date.now() < navSettleUntil) {
+        scheduleBackgroundUiSync();
+        return;
+      }
       scheduleUiSync();
       if (typeof setTimeout === 'function') {
         setTimeout(scheduleUiSync, 80);
